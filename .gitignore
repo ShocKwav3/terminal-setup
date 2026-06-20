@@ -1,0 +1,9 @@
+# Claude Code local settings (machine-specific permissions)
+.claude/settings.local.json
+
+# macOS
+.DS_Store
+
+# Config backups created by install.sh on overwrite
+*.bak
+*.bak.*
