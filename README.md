@@ -18,6 +18,8 @@ without redoing it by hand.
 | **bat** syntax highlighting (`cat`) | **eza** listing (`ls`) |
 | ![atuin history search](images/sample9.png) | ![starship in a node project](images/sample10.png) |
 | **atuin** history search (Ctrl-R) | **starship** in a Node/pnpm project |
+| ![starship toolchain icons](images/sample11.png) | ![git details + wezterm status bar](images/sample12.png) |
+| toolchain icons (pnpm/React/Vitest) | git details + **wezterm** tab bar & status pills |
 
 ## Usage
 
@@ -88,6 +90,25 @@ Deployment is gated by one confirm. For each file that already exists you choose
 **Git identity:** `configs/home/.gitconfig` ships **without** name/email. The
 installer prompts you for them and sets them via `git config --global` (so they're
 never committed to the repo).
+
+### Starship prompt style
+
+After deploying configs, the installer offers two independent choices for the
+starship prompt and rewrites the deployed `starship.toml` to match:
+
+- **Tool versions** — `icon` (icon only, default) or `verbose` (icon + the
+  detected tool/language version).
+- **Color scheme** — `colorful` (brand colors, default) or `lesscolor` (a uniform
+  grey + dim-white look).
+
+Press Enter twice to keep the shipped look (colorful + icon-only); the file is
+left untouched in that case. The prompt is also skipped if you chose to **keep**
+an existing/customized `starship.toml` — only a freshly deployed copy that matches
+the repo baseline is rewritten. Every module carries all of its alternates as
+commented blocks (`v1`/`v2`/`verbose`/`v4`), so the repo copy is always the
+baseline and the transform is deterministic and safe to re-run. To switch later,
+just re-run `./install.sh` (or flip the blocks in `~/.config/starship/starship.toml`
+by hand). wezterm has no such toggle — its style is fixed.
 
 ## Notes & gotchas
 

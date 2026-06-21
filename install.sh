@@ -68,6 +68,19 @@ confirm() {
   esac
 }
 
+# prompt_choice "question" <default_val> <other_val>
+# Two-way picker. Enter / 1 picks the default; 2 picks the other.
+# Result is left in the global REPLY_CHOICE.
+prompt_choice() {
+  local reply
+  printf '%s' "${C_BOLD}?${C_RESET} $1 ${C_DIM}[1] $2 (default) / [2] $3${C_RESET} "
+  read -r reply
+  case "$reply" in
+    2) REPLY_CHOICE="$3" ;;
+    *) REPLY_CHOICE="$2" ;;
+  esac
+}
+
 # ---------------------------------------------------------------------------
 # Detection helpers
 # ---------------------------------------------------------------------------
@@ -399,8 +412,117 @@ deploy_configs() {
     deploy "$CONFIGS_DIR/config/$d" "$DEST_CONFIG/$d"
   done
 
+  apply_starship_variants
+
   # Git name/email injected separately (kept out of the repo's .gitconfig).
   if have git; then configure_git_identity; fi
+}
+
+# ---------------------------------------------------------------------------
+# Starship prompt variants
+# ---------------------------------------------------------------------------
+# The deployed starship.toml ships in its canonical form: colorful + icon-only.
+# Each module carries its alternates as commented blocks marked v1/v2/verbose/v4.
+# This prompts for two independent axes and flips the deployed copy to match by
+# uncommenting the chosen block per module and commenting the others. The repo
+# copy is always the baseline, so the transform is deterministic / idempotent.
+#
+#   color  : colorful (brand colors)  | lesscolor (grey + dim white)
+#   info   : icon (icon only)         | verbose (icon + tool version)
+#
+#   colorful + icon    -> v1     lesscolor + icon    -> v2
+#   colorful + verbose -> verbose lesscolor + verbose -> v4
+#
+# Color-only modules (no version concept) carry just v1/v2; for those the info
+# axis falls back to the matching icon variant.
+apply_starship_variants() {
+  local f="$DEST_CONFIG/starship/starship.toml"
+  local repo="$CONFIGS_DIR/config/starship/starship.toml"
+  [ -f "$f" ] || return
+  # Only transform the file we shipped this run. A kept or customized
+  # starship.toml may be missing some variant blocks (e.g. an older copy with no
+  # v4) — rewriting it could leave a module with no active format — and editing it
+  # would silently mutate a file the user chose to keep. So require a byte-for-byte
+  # match with the repo baseline before touching it.
+  if ! diff -q "$f" "$repo" >/dev/null 2>&1; then
+    info "starship.toml differs from the repo copy (kept/custom) — leaving prompt style as-is."
+    return
+  fi
+
+  step "Starship prompt style"
+  summary "Two independent choices. The defaults reproduce the shipped look."
+  local color info_mode
+  prompt_choice "Tool versions in the prompt?" "icon" "verbose"; info_mode="$REPLY_CHOICE"
+  prompt_choice "Color scheme?"                "colorful" "lesscolor"; color="$REPLY_CHOICE"
+
+  if [ "$color" = "colorful" ] && [ "$info_mode" = "icon" ]; then
+    ok "Keeping default starship style (colorful + icon-only)."
+    return
+  fi
+
+  local tmp; tmp="$(mktemp)"
+  if awk -v COLOR="$color" -v INFO="$info_mode" '
+    function marker_name(l) {
+      if (l ~ /^# v1 \(orig colorful/)          return "v1"
+      if (l ~ /^# v2 \(less-color icon-only/)   return "v2"
+      if (l ~ /^# --- verbose \(version\) below/) return "verbose"
+      if (l ~ /^# v4 \(less-color verbose/)     return "v4"
+      return ""
+    }
+    function uncomment(l)  { sub(/^# /, "", l); return l }
+    function commentize(l) { if (l !~ /^#/) l = "# " l; return l }
+    function flush(   i, line, vt, hasV, target, cmd_on, val) {
+      if (n == 0) return
+      hasV = 0
+      for (i = 1; i <= n; i++) if (buf[i] ~ /^# --- verbose \(version\) below/) hasV = 1
+      if      (COLOR == "colorful"  && INFO == "icon")    { target = "v1"; cmd_on = 0 }
+      else if (COLOR == "lesscolor" && INFO == "icon")    { target = "v2"; cmd_on = 0 }
+      else if (COLOR == "colorful"  && INFO == "verbose") { if (hasV) { target = "verbose"; cmd_on = 1 } else { target = "v1"; cmd_on = 0 } }
+      else                                                { if (hasV) { target = "v4";      cmd_on = 1 } else { target = "v2"; cmd_on = 0 } }
+      i = 1
+      while (i <= n) {
+        line = buf[i]
+        vt = marker_name(line)
+        if (vt != "") {
+          print line; i++                       # marker line is left untouched
+          if (i <= n) {
+            val = buf[i]
+            if (val ~ /^#?[ ]*format[ ]*=[ ]*"""/) {   # multiline value
+              if (vt == target) print uncomment(val); else print commentize(val)
+              i++
+              while (i <= n) {
+                val = buf[i]
+                if (vt == target) print uncomment(val); else print commentize(val)
+                i++
+                if (val ~ /^#?[ ]*"""[ ]*$/) break
+              }
+            } else {                                   # single-line value
+              if (vt == target) print uncomment(val); else print commentize(val)
+              i++
+            }
+          }
+          continue
+        }
+        if (line ~ /^#?[ ]*command[ ]*=/) {
+          if (cmd_on) print uncomment(line); else print commentize(line)
+          i++; continue
+        }
+        print line; i++
+      }
+      n = 0
+    }
+    # Flush on a real TOML table header only. Multiline format *values* begin
+    # with "[" too (e.g. [](fg:...)), so match a bare [name] line, nothing else.
+    /^\[[^]]+\][ \t]*$/ { flush() }
+    { buf[++n] = $0 }
+    END { flush() }
+  ' "$f" > "$tmp" && [ -s "$tmp" ]; then
+    mv "$tmp" "$f"
+    ok "Applied starship style: $color + $info_mode."
+  else
+    rm -f "$tmp"
+    err "Failed to apply starship variants — left starship.toml unchanged."
+  fi
 }
 
 # ---------------------------------------------------------------------------

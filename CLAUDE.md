@@ -48,6 +48,9 @@ configs/
 - `ensure_formulae "<summary>" <pkg...>` / `ensure_casks ...` — grouped brew installs
 - `install_formulae install_casks install_omz_plugins install_fzf_git`
 - Deploy: `deploy <src> <dest>`, `show_diff`, `configure_git_identity`, `deploy_configs`
+- `prompt_choice "q" <default> <other>` — two-way picker, result in `REPLY_CHOICE`
+- `apply_starship_variants` — prompts for the two starship axes and rewrites the
+  deployed `starship.toml` with an `awk` pass (see "starship prompt variants" below)
 - `post_install` — `bat cache --build` + final notes
 - `main` — runs the phases in order
 
@@ -64,11 +67,52 @@ drive them against a `mktemp -d`, feeding prompt answers on stdin, then `rm -rf`
 the temp dir. Example pattern: strip the trailing `main "$@"`, source the rest,
 override `CONFIGS_DIR`/`DEST_HOME`/`DEST_CONFIG`, call `deploy` with piped input.
 
+To test the starship transform, copy `starship.toml` into a temp `DEST_CONFIG`,
+run `apply_starship_variants` with stdin answers, and verify the result with
+`STARSHIP_CONFIG=<file> starship print-config`. Check all four combos; the
+`colorful + icon` output must be byte-identical to the repo copy, and re-running
+the transform on its own output must be a no-op (idempotent).
+
 ## Editing configs
 
 `configs/` is seeded from a live machine. When updating a config, edit the file
 under `configs/`, not `~`. Keep junk out: no `.DS_Store`, no `*.bak`, no `.git`
 dirs, no theme `preview.png` / `README.md`.
+
+### starship prompt variants
+
+`configs/config/starship/starship.toml` ships in its **canonical** form:
+**colorful + icon-only**. Every module that can vary carries its alternates as
+commented blocks, each introduced by a fixed marker line:
+
+- `# v1 (orig colorful — ACTIVE...)` — colorful, icon-only *(active in the repo)*
+- `# v2 (less-color icon-only — INACTIVE):` — grey/dim, icon-only
+- `# --- verbose (version) below ... ---` — colorful, icon + version
+- `# v4 (less-color verbose — INACTIVE):` — grey/dim, icon + version
+
+Toolchain modules (the ones with a `# command = ...` line: `pkg_*`, `cmake`,
+`lang_*`, `runtime_*`, `fw_*`, `test_*`) have all four. Color-only modules
+(`username`, `directory`, `cmd_duration`, `env_var`, `container`, `docker_context`,
+`terraform`, `helm`, `kubernetes`, `status`) have only `v1`/`v2` — the verbose axis
+falls back to the matching icon variant for them. The `git_*` modules are fixed
+(no markers). wezterm has **no** variants.
+
+`apply_starship_variants` maps the two prompt answers to one target marker per
+module (colorful+icon→v1, lesscolor+icon→v2, colorful+verbose→verbose,
+lesscolor+verbose→v4), then for each module uncomments the target block, comments
+the others, and toggles the `# command` line (on only for verbose). It works from
+the canonical baseline every run, so it is deterministic and idempotent.
+
+**Rules when editing this file:**
+- Keep the marker lines verbatim — the installer's `awk` matches on them.
+- The default-active block must stay **uncommented** and be `v1` (colorful+icon);
+  all other blocks stay `# `-commented. `command` stays commented by default.
+- A multiline `format` value's body lines start with `[`; the `awk` only treats a
+  bare `[name]` line as a table header, so don't put a real value on a line that
+  looks like a header.
+- If you add a new toolchain module, give it all four blocks (the `v4` block mirrors
+  the verbose block but uses `color_grey` bg + `color_dim_white` text).
+- Test the transform non-destructively (see Testing) for all four combos.
 
 ### yazi flavors
 

@@ -33,6 +33,9 @@ color_mauve  = '#c084fc'
 color_git    = '#c74229'
 color_white   = '#ffffff'
 color_black   = '#000000'
+# --- v2 (icon-colored) scheme knobs — tweak these two to taste ---
+color_grey      = '#3c3f44'   # machine grey — uniform segment background (L1)
+color_dim_white = '#b3b3b3'   # low-brightness white — text (L1/L2/L3)
 
 # Toolchain official brand colors
 color_node      = '#67ac52'
@@ -75,14 +78,23 @@ format   = "[ $symbol]($style) "
 show_always = true
 style_user  = "color_aqua"
 style_root  = "color_red"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format      = "[󰊠 $user]($style) "
+# v2 (less-color icon-only — INACTIVE):
+# format      = "[󰊠 ](fg:$style)[$user](fg:color_dim_white) "
 
 [directory]
 style             = "color_blue"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format            = """
 [](fg:$style)[](bold fg:color_white bg:$style)[](fg:$style bg:color_overlay)\
 [ $path](bold fg:$style bg:color_overlay)[](fg:color_overlay) \
 """
+# v2 (less-color icon-only — INACTIVE):
+# format            = """
+# [](fg:color_grey)[](bold fg:$style bg:color_grey)[](fg:color_grey)\
+# [$path](bold fg:color_dim_white) \
+# """
 truncation_length = 2
 truncation_symbol = ""
 use_os_path_sep   = false
@@ -102,11 +114,11 @@ use_logical_path  = true
 [git_branch]
 symbol   = " "
 style    = "fg:color_git bold"
-format   = "([$symbol$branch(:$remote_branch)]($style) )"
+format   = "([$symbol](fg:color_git bold)[$branch(:$remote_branch)](fg:color_dim_white bold) )"
 
 [git_status]
 style      = "fg:color_git bold"
-format     = "([󱖫 $all_status$ahead_behind]($style) )"
+format     = "([󱖫 ](fg:color_git bold)[$all_status$ahead_behind](fg:color_dim_white bold) )"
 ahead      = "^$count"
 behind     = "v$count"
 diverged   = "^${ahead_count}v${behind_count}"
@@ -120,14 +132,14 @@ renamed    = "r$count"
 
 [git_commit]
 only_detached      = false
-format              = "([ @$hash$tag ](fg:color_git))"
+format              = "([ ](fg:color_git)[@$hash$tag ](fg:color_dim_white))"
 commit_hash_length = 6
 tag_symbol         = " #"
 tag_disabled       = false
 
 [git_state]
 style           = "fg:color_git bold"
-format          = "[󱇯 $state]($style)( $progress_current/$progress_total) "
+format          = "[󱇯 ](fg:color_git bold)[$state](fg:color_dim_white bold)( $progress_current/$progress_total) "
 rebase          = "REBASE"
 merge           = "MERGE"
 revert          = "REVERT"
@@ -140,7 +152,7 @@ am_or_rebase    = "AM/REBASE"
 disabled              = false
 added_style           = "fg:color_green bold"
 deleted_style         = "fg:color_red bold"
-format                = "( ([+$added ]($added_style))([-$deleted ]($deleted_style)))"
+format                = "( ([+]($added_style)[$added ](fg:color_dim_white bold))([-]($deleted_style)[$deleted ](fg:color_dim_white bold)))"
 only_nonzero_diffs    = true
 
 # ============================================================
@@ -151,10 +163,16 @@ only_nonzero_diffs    = true
 min_time           = 500
 show_milliseconds  = false
 min_time_to_notify = 10000
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format             = """
 [](fg:color_mauve)[󰔛](bold fg:color_white bg:color_mauve)[](fg:color_mauve bg:color_overlay)\
 [ $duration](bold fg:color_mauve bg:color_overlay)[](fg:color_overlay)\
 """
+# v2 (less-color icon-only — INACTIVE):
+# format             = """
+# [](fg:color_grey)[󰔛](bold fg:color_mauve bg:color_grey)[](fg:color_grey)\
+# [$duration](bold fg:color_dim_white)\
+# """
 
 # ============================================================
 #  Row 4 — Env vars + package + build tools
@@ -163,48 +181,81 @@ format             = """
 [env_var.VIRTUAL_ENV]
 variable = "VIRTUAL_ENV"
 style    = "fg:color_pink bold"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format   = "([ $env_value]($style) )"
+# v2 (less-color icon-only — INACTIVE):
+# format   = "([ ](fg:color_pink bold)[$env_value](fg:color_dim_white bold) )"
 default  = ""
 
 [container]
 disabled = false
 style    = "color_container"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = """
 [](fg:$style)[](bold fg:color_white bg:$style)[](fg:$style bg:color_overlay)\
 [ $name](bold fg:$style bg:color_overlay)[](fg:color_overlay) \
 """
+# v2 (less-color icon-only — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:$style bg:color_grey)[](fg:color_grey)\
+# [$name](bold fg:color_dim_white) \
+# """
 
 [custom.pkg_npm]
 when    = "test -f package.json && ! test -f yarn.lock && ! test -f pnpm-lock.yaml && ! test -f bun.lock && ! test -f bun.lockb && ! test -f bunfig.toml"
 # command = "req=$(python3 -c \"import json; d=json.load(open('package.json')); pm=d.get('packageManager',''); v=(pm.split('@',1)[1].split('+')[0] if pm.startswith('npm@') else d.get('engines',{}).get('npm','')); print(v,end='')\" 2>/dev/null); inst=$(npm --version 2>/dev/null); out=${req}$([ -n \"$inst\" ] && printf '(%s)' \"$inst\"); [ -n \"$out\" ] && printf '%s' \"$out\""
 style   = "color_npm"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:color_npm)[](bold fg:color_white bg:color_npm)[](fg:color_npm) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[](bold fg:color_npm bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:color_npm)[](bold fg:color_white bg:color_npm)[](fg:color_npm bg:color_overlay)\
 # [ $output](bold fg:color_npm bg:color_overlay)[](fg:color_overlay) \
+# """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:color_npm bg:color_grey)[](fg:color_grey)\
+# [ $output](bold fg:color_dim_white) \
 # """
 
 [custom.pkg_yarn]
 when    = "test -f yarn.lock && test -f package.json"
 # command = "req=$(python3 -c \"import json; d=json.load(open('package.json')); pm=d.get('packageManager',''); v=(pm.split('@',1)[1].split('+')[0] if pm.startswith('yarn@') else d.get('engines',{}).get('yarn','')); print(v,end='')\" 2>/dev/null); inst=$(yarn --version 2>/dev/null); out=${req}$([ -n \"$inst\" ] && printf '(%s)' \"$inst\"); [ -n \"$out\" ] && printf '%s' \"$out\""
 style   = "color_yarn"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:color_yarn)[](bold fg:color_white bg:color_yarn)[](fg:color_yarn) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[](bold fg:color_yarn bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:color_yarn)[](bold fg:color_white bg:color_yarn)[](fg:color_yarn bg:color_overlay)\
 # [ $output](bold fg:color_yarn bg:color_overlay)[](fg:color_overlay) \
+# """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:color_yarn bg:color_grey)[](fg:color_grey)\
+# [ $output](bold fg:color_dim_white) \
 # """
 
 [custom.pkg_pnpm]
 when    = "test -f pnpm-lock.yaml && test -f package.json"
 # command = "req=$(python3 -c \"import json; d=json.load(open('package.json')); pm=d.get('packageManager',''); v=(pm.split('@',1)[1].split('+')[0] if pm.startswith('pnpm@') else d.get('engines',{}).get('pnpm','')); print(v,end='')\" 2>/dev/null); inst=$(pnpm --version 2>/dev/null); out=${req}$([ -n \"$inst\" ] && printf '(%s)' \"$inst\"); [ -n \"$out\" ] && printf '%s' \"$out\""
 style   = "color_pnpm"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:color_pnpm)[](bold fg:color_white bg:color_pnpm)[](fg:color_pnpm) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[](bold fg:color_pnpm bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:color_pnpm)[](bold fg:color_white bg:color_pnpm)[](fg:color_pnpm bg:color_overlay)\
 # [ $output](bold fg:color_pnpm bg:color_overlay)[](fg:color_overlay) \
+# """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:color_pnpm bg:color_grey)[](fg:color_grey)\
+# [ $output](bold fg:color_dim_white) \
 # """
 
 [custom.pkg_bun]
@@ -212,32 +263,56 @@ format = "[](fg:color_pnpm)[](bold fg:color_white bg:color_pnpm)[](fg:c
 when    = "( test -f bun.lock || test -f bun.lockb ) && ( test -f .nvmrc || test -f .node-version || ( test -f package.json && python3 -c \"import json,sys;d=json.load(open('package.json'));sys.exit(0 if d.get('engines',{}).get('node') else 1)\" 2>/dev/null ) )"
 # command = "req=$([ -f package.json ] && python3 -c \"import json; d=json.load(open('package.json')); pm=d.get('packageManager',''); v=(pm.split('@',1)[1].split('+')[0] if pm.startswith('bun@') else d.get('engines',{}).get('bun','')); print(v,end='')\" 2>/dev/null); inst=$(bun --version 2>/dev/null); out=${req}$([ -n \"$inst\" ] && printf '(%s)' \"$inst\"); [ -n \"$out\" ] && printf '%s' \"$out\""
 style   = "color_bun"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:color_bun)[](bold fg:color_white bg:color_bun)[](fg:color_bun) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[](bold fg:color_bun bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:color_bun)[](bold fg:color_white bg:color_bun)[](fg:color_bun bg:color_overlay)\
 # [ $output](bold fg:color_bun bg:color_overlay)[](fg:color_overlay) \
+# """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:color_bun bg:color_grey)[](fg:color_grey)\
+# [ $output](bold fg:color_dim_white) \
 # """
 
 [custom.pkg_composer]
 when    = "test -f composer.json"
 # command = "inst=$(composer --version 2>/dev/null | awk '{print $3}'); [ -n \"$inst\" ] && printf '(%s)' \"$inst\""
 style   = "color_php"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:color_php)[](bold fg:color_white bg:color_php)[](fg:color_php) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[](bold fg:color_php bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:color_php)[](bold fg:color_white bg:color_php)[](fg:color_php bg:color_overlay)\
 # [ $output](bold fg:color_php bg:color_overlay)[](fg:color_overlay) \
 # """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:color_php bg:color_grey)[](fg:color_grey)\
+# [ $output](bold fg:color_dim_white) \
+# """
 
 [cmake]
 disabled = false
 style    = "color_cmake"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:$style)[](bold fg:color_white bg:$style)[](fg:$style) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[](bold fg:$style bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:$style)[](bold fg:color_white bg:$style)[](fg:$style bg:color_overlay)\
 # [ $version](bold fg:$style bg:color_overlay)[](fg:color_overlay) \
+# """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:$style bg:color_grey)[](fg:color_grey)\
+# [ $version](bold fg:color_dim_white) \
 # """
 
 # ============================================================
@@ -247,34 +322,58 @@ format = "[](fg:$style)[](bold fg:color_white bg:$style)[](fg:$style) "
 [docker_context]
 style           = "color_docker"
 only_with_files = false
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = """
 [](fg:$style)[](bold fg:color_white bg:$style)[](fg:$style bg:color_overlay)\
 [ $context](bold fg:$style bg:color_overlay)[](fg:color_overlay) \
 """
+# v2 (less-color icon-only — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:$style bg:color_grey)[](fg:color_grey)\
+# [$context](bold fg:color_dim_white) \
+# """
 
 [terraform]
 disabled = false
 style    = "color_terraform"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = """
 [](fg:$style)[](bold fg:color_white bg:$style)[](fg:$style bg:color_overlay)\
 [ $workspace](bold fg:$style bg:color_overlay)[](fg:color_overlay) \
 """
+# v2 (less-color icon-only — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:$style bg:color_grey)[](fg:color_grey)\
+# [$workspace](bold fg:color_dim_white) \
+# """
 
 [helm]
 disabled = false
 style    = "color_helm"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = """
 [](fg:$style)[](bold fg:color_white bg:$style)[](fg:$style bg:color_overlay)\
 [ $version](bold fg:$style bg:color_overlay)[](fg:color_overlay) \
 """
+# v2 (less-color icon-only — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:$style bg:color_grey)[](fg:color_grey)\
+# [$version](bold fg:color_dim_white) \
+# """
 
 [kubernetes]
 disabled = false
 style    = "color_k8s"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = """
 [](fg:$style)[](bold fg:color_white bg:$style)[](fg:$style bg:color_overlay)\
 [ $context](bold fg:$style bg:color_overlay)[](fg:color_overlay) \
 """
+# v2 (less-color icon-only — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:$style bg:color_grey)[](fg:color_grey)\
+# [$context](bold fg:color_dim_white) \
+# """
 
 # ============================================================
 #  Prompt character
@@ -295,10 +394,16 @@ symbol = ""
 success_symbol = "󰄭"
 style = "color_red"
 success_style = "color_green"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = """
 [](fg:color_black)[$symbol](bold fg:$style bg:color_black)[](fg:color_black bg:color_overlay)\
 [$status](bold fg:$style bg:color_overlay)[](fg:color_overlay)\
 """
+# v2 (less-color icon-only — INACTIVE):
+# format = """
+# [](fg:color_grey)[$symbol](bold fg:$style bg:color_grey)[](fg:color_grey)\
+# [$status](bold fg:color_dim_white)\
+# """
 
 # ============================================================
 #  Custom Toolchain Modules — icon-only (verbose version commented per block)
@@ -310,99 +415,171 @@ format = """
 when    = "ls *.c 2>/dev/null | grep -q ."
 # command = "inst=$(gcc --version 2>/dev/null | awk 'NR==1{for(i=1;i<=NF;i++) if($i~/^[0-9]/) {print $i; exit}}'); [ -n \"$inst\" ] && printf '(%s)' \"$inst\""
 style   = "color_c"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:color_c)[](bold fg:color_white bg:color_c)[](fg:color_c) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[](bold fg:color_c bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:color_c)[](bold fg:color_white bg:color_c)[](fg:color_c bg:color_overlay)\
 # [ $output](bold fg:color_c bg:color_overlay)[](fg:color_overlay) \
+# """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:color_c bg:color_grey)[](fg:color_grey)\
+# [ $output](bold fg:color_dim_white) \
 # """
 
 [custom.lang_cpp]
 when    = "ls *.cpp 2>/dev/null | grep -q ."
 # command = "inst=$(g++ --version 2>/dev/null | awk 'NR==1{for(i=1;i<=NF;i++) if($i~/^[0-9]/) {print $i; exit}}'); [ -n \"$inst\" ] && printf '(%s)' \"$inst\""
 style   = "color_cpp"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:color_cpp)[󰙲](bold fg:color_white bg:color_cpp)[](fg:color_cpp) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[󰙲](bold fg:color_cpp bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:color_cpp)[󰙲](bold fg:color_white bg:color_cpp)[](fg:color_cpp bg:color_overlay)\
 # [ $output](bold fg:color_cpp bg:color_overlay)[](fg:color_overlay) \
+# """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[󰙲](bold fg:color_cpp bg:color_grey)[](fg:color_grey)\
+# [ $output](bold fg:color_dim_white) \
 # """
 
 [custom.lang_python]
 when    = "test -f pyproject.toml || test -f setup.py || test -f requirements.txt || test -f Pipfile"
 # command = "req=$(cat .python-version 2>/dev/null | awk 'NF{print; exit}'); [ -z \"$req\" ] && [ -f pyproject.toml ] && req=$(grep requires-python pyproject.toml | grep -o '[>=<]*[0-9][0-9.]*' | head -1); inst=$(python3 --version 2>/dev/null | awk '{print $2}'); [ -n \"$inst\" ] && printf '%s(%s)' \"$req\" \"$inst\""
 style   = "color_python"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:color_python)[](bold fg:color_white bg:color_python)[](fg:color_python) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[](bold fg:color_python bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:color_python)[](bold fg:color_white bg:color_python)[](fg:color_python bg:color_overlay)\
 # [ $output](bold fg:color_python bg:color_overlay)[](fg:color_overlay) \
+# """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:color_python bg:color_grey)[](fg:color_grey)\
+# [ $output](bold fg:color_dim_white) \
 # """
 
 [custom.lang_rust]
 when    = "test -f Cargo.toml"
 # command = "req=$(grep -F channel rust-toolchain.toml 2>/dev/null | cut -d'\"' -f2); [ -z \"$req\" ] && req=$(cat rust-toolchain 2>/dev/null | grep -v '^#' | awk 'NF{print; exit}'); inst=$(rustc --version 2>/dev/null | awk '{print $2}'); [ -n \"$inst\" ] && printf '%s(%s)' \"$req\" \"$inst\""
 style   = "color_rust"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:color_rust)[](bold fg:color_white bg:color_rust)[](fg:color_rust) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[](bold fg:color_rust bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:color_rust)[](bold fg:color_white bg:color_rust)[](fg:color_rust bg:color_overlay)\
 # [ $output](bold fg:color_rust bg:color_overlay)[](fg:color_overlay) \
+# """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:color_rust bg:color_grey)[](fg:color_grey)\
+# [ $output](bold fg:color_dim_white) \
 # """
 
 [custom.lang_go]
 when    = "test -f go.mod"
 # command = "req=$(grep '^go ' go.mod 2>/dev/null | awk '{print $2}'); inst=$(go version 2>/dev/null | awk '{print $3}' | sed 's/^go//'); [ -n \"$inst\" ] && printf '%s(%s)' \"$req\" \"$inst\""
 style   = "color_go"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:color_go)[](bold fg:color_white bg:color_go)[](fg:color_go) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[](bold fg:color_go bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:color_go)[](bold fg:color_white bg:color_go)[](fg:color_go bg:color_overlay)\
 # [ $output](bold fg:color_go bg:color_overlay)[](fg:color_overlay) \
+# """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:color_go bg:color_grey)[](fg:color_grey)\
+# [ $output](bold fg:color_dim_white) \
 # """
 
 [custom.lang_java]
 when    = "test -f pom.xml || test -f build.gradle || test -f build.gradle.kts || test -f .java-version"
 # command = "req=$(cat .java-version 2>/dev/null | awk 'NF{print; exit}'); [ -z \"$req\" ] && [ -f pom.xml ] && req=$(grep -F '<java.version>' pom.xml | grep -o '[0-9][0-9.]*' | head -1); jh=${JAVA_HOME:-$(/usr/libexec/java_home 2>/dev/null)}; inst=$(grep -h JAVA_VERSION \"$jh/release\" 2>/dev/null | cut -d'\"' -f2); [ -z \"$inst\" ] && inst=$(java --version 2>/dev/null | awk 'NR==1{print $2}'); [ -n \"$inst\" ] && printf '%s(%s)' \"$req\" \"$inst\""  # reads JDK release file; JVM only as fallback
 style   = "color_java"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:color_java)[](bold fg:color_white bg:color_java)[](fg:color_java) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[](bold fg:color_java bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:color_java)[](bold fg:color_white bg:color_java)[](fg:color_java bg:color_overlay)\
 # [ $output](bold fg:color_java bg:color_overlay)[](fg:color_overlay) \
+# """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:color_java bg:color_grey)[](fg:color_grey)\
+# [ $output](bold fg:color_dim_white) \
 # """
 
 [custom.lang_lua]
 when    = "ls *.lua 2>/dev/null | grep -q ."
 # command = "inst=$(lua -v 2>&1 | awk '{print $2}'); [ -n \"$inst\" ] && printf '(%s)' \"$inst\""
 style   = "color_lua"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:color_lua)[](bold fg:color_white bg:color_lua)[](fg:color_lua) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[](bold fg:color_lua bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:color_lua)[](bold fg:color_white bg:color_lua)[](fg:color_lua bg:color_overlay)\
 # [ $output](bold fg:color_lua bg:color_overlay)[](fg:color_overlay) \
+# """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:color_lua bg:color_grey)[](fg:color_grey)\
+# [ $output](bold fg:color_dim_white) \
 # """
 
 [custom.lang_ruby]
 when    = "test -f Gemfile || test -f .ruby-version"
 # command = "req=$(cat .ruby-version 2>/dev/null | awk 'NF{print; exit}'); [ -z \"$req\" ] && [ -f Gemfile ] && req=$(grep '^ruby' Gemfile | grep -o '[0-9][0-9.]*' | head -1); inst=$(ruby --version 2>/dev/null | awk '{print $2}'); [ -n \"$inst\" ] && printf '%s(%s)' \"$req\" \"$inst\""
 style   = "color_ruby"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:color_ruby)[](bold fg:color_white bg:color_ruby)[](fg:color_ruby) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[](bold fg:color_ruby bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:color_ruby)[](bold fg:color_white bg:color_ruby)[](fg:color_ruby bg:color_overlay)\
 # [ $output](bold fg:color_ruby bg:color_overlay)[](fg:color_overlay) \
+# """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:color_ruby bg:color_grey)[](fg:color_grey)\
+# [ $output](bold fg:color_dim_white) \
 # """
 
 [custom.lang_php]
 when    = "test -f composer.json || test -f index.php"
 # command = "req=$([ -f composer.json ] && python3 -c \"import json; d=json.load(open('composer.json')); print(d.get('require',{}).get('php',''),end='')\" 2>/dev/null); inst=$(php --version 2>/dev/null | awk 'NR==1{print $2}'); [ -n \"$inst\" ] && printf '%s(%s)' \"$req\" \"$inst\""
 style   = "color_php"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:color_php)[](bold fg:color_white bg:color_php)[](fg:color_php) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[](bold fg:color_php bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:color_php)[](bold fg:color_white bg:color_php)[](fg:color_php bg:color_overlay)\
 # [ $output](bold fg:color_php bg:color_overlay)[](fg:color_overlay) \
+# """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:color_php bg:color_grey)[](fg:color_grey)\
+# [ $output](bold fg:color_dim_white) \
 # """
 
 # --- Runtimes ---
@@ -412,11 +589,19 @@ format = "[](fg:color_php)[](bold fg:color_white bg:color_php)[](fg:col
 when    = "test -f .nvmrc || test -f .node-version || ( test -f package.json && python3 -c \"import json,sys;d=json.load(open('package.json'));sys.exit(0 if d.get('engines',{}).get('node') else 1)\" 2>/dev/null ) || ( test -f package.json && ! test -f bunfig.toml && ! test -f bun.lock && ! test -f bun.lockb )"
 # command = "req=$(cat .nvmrc 2>/dev/null | awk 'NF{print; exit}' | sed 's/^v//'); [ -z \"$req\" ] && req=$(cat .node-version 2>/dev/null | awk 'NF{print; exit}' | sed 's/^v//'); [ -z \"$req\" ] && [ -f package.json ] && req=$(python3 -c \"import json; d=json.load(open('package.json')); print(d.get('engines',{}).get('node',''),end='')\" 2>/dev/null); inst=$(node --version 2>/dev/null | sed 's/^v//'); [ -n \"$inst\" ] && printf '%s(%s)' \"$req\" \"$inst\""
 style   = "color_node"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:color_node)[](bold fg:color_white bg:color_node)[](fg:color_node) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[](bold fg:color_node bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:color_node)[](bold fg:color_white bg:color_node)[](fg:color_node bg:color_overlay)\
 # [ $output](bold fg:color_node bg:color_overlay)[](fg:color_overlay) \
+# """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:color_node bg:color_grey)[](fg:color_grey)\
+# [ $output](bold fg:color_dim_white) \
 # """
 
 [custom.runtime_bun]
@@ -424,11 +609,19 @@ format = "[](fg:color_node)[](bold fg:color_white bg:color_node)[](fg:c
 when    = "( test -f bunfig.toml || test -f bun.lock || test -f bun.lockb ) && ! test -f .nvmrc && ! test -f .node-version && ! ( test -f package.json && python3 -c \"import json,sys;d=json.load(open('package.json'));sys.exit(0 if d.get('engines',{}).get('node') else 1)\" 2>/dev/null )"
 # command = "req=$([ -f package.json ] && python3 -c \"import json; d=json.load(open('package.json')); print(d.get('engines',{}).get('bun',''),end='')\" 2>/dev/null); inst=$(bun --version 2>/dev/null); [ -n \"$inst\" ] && printf '%s(%s)' \"$req\" \"$inst\""
 style   = "color_bun"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:color_bun)[](bold fg:color_white bg:color_bun)[](fg:color_bun) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[](bold fg:color_bun bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:color_bun)[](bold fg:color_white bg:color_bun)[](fg:color_bun bg:color_overlay)\
 # [ $output](bold fg:color_bun bg:color_overlay)[](fg:color_overlay) \
+# """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:color_bun bg:color_grey)[](fg:color_grey)\
+# [ $output](bold fg:color_dim_white) \
 # """
 
 # --- Frameworks (FE) ---
@@ -438,11 +631,19 @@ format = "[](fg:color_bun)[](bold fg:color_white bg:color_bun)[](fg:col
 when    = "test -f package.json && python3 -c \"import json,sys;d=json.load(open('package.json'));dd={**d.get('dependencies',{}),**d.get('devDependencies',{})};sys.exit(0 if 'react' in dd else 1)\" 2>/dev/null"
 # command = "python3 -c \"import json,os; d=json.load(open('package.json')) if os.path.exists('package.json') else {}; dd={**d.get('dependencies',{}),**d.get('devDependencies',{})}; req=dd.get('react',''); p='node_modules/react/package.json'; inst=(json.load(open(p)).get('version','') if os.path.exists(p) else ''); print((req+('('+inst+')' if inst else '')) if (req or inst) else '', end='')\" 2>/dev/null"
 style   = "color_react"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:color_react)[](bold fg:color_white bg:color_react)[](fg:color_react) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[](bold fg:color_react bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:color_react)[](bold fg:color_white bg:color_react)[](fg:color_react bg:color_overlay)\
 # [ $output](bold fg:color_react bg:color_overlay)[](fg:color_overlay) \
+# """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:color_react bg:color_grey)[](fg:color_grey)\
+# [ $output](bold fg:color_dim_white) \
 # """
 
 [custom.fw_vue]
@@ -450,11 +651,19 @@ format = "[](fg:color_react)[](bold fg:color_white bg:color_react)[](fg
 when    = "test -f package.json && python3 -c \"import json,sys;d=json.load(open('package.json'));dd={**d.get('dependencies',{}),**d.get('devDependencies',{})};sys.exit(0 if 'vue' in dd else 1)\" 2>/dev/null"
 # command = "python3 -c \"import json,os; d=json.load(open('package.json')) if os.path.exists('package.json') else {}; dd={**d.get('dependencies',{}),**d.get('devDependencies',{})}; req=dd.get('vue',''); p='node_modules/vue/package.json'; inst=(json.load(open(p)).get('version','') if os.path.exists(p) else ''); print((req+('('+inst+')' if inst else '')) if (req or inst) else '', end='')\" 2>/dev/null"
 style   = "color_vue"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:color_vue)[󰡄](bold fg:color_white bg:color_vue)[](fg:color_vue) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[󰡄](bold fg:color_vue bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:color_vue)[󰡄](bold fg:color_white bg:color_vue)[](fg:color_vue bg:color_overlay)\
 # [ $output](bold fg:color_vue bg:color_overlay)[](fg:color_overlay) \
+# """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[󰡄](bold fg:color_vue bg:color_grey)[](fg:color_grey)\
+# [ $output](bold fg:color_dim_white) \
 # """
 
 # --- Test runners ---
@@ -464,11 +673,19 @@ format = "[](fg:color_vue)[󰡄](bold fg:color_white bg:color_vue)[](fg:co
 when    = "( test -f vitest.config.js || test -f vitest.config.ts || test -f vitest.config.mjs || test -f vitest.config.cjs || test -f vitest.config.mts ) || ( test -f package.json && python3 -c \"import json,sys;d=json.load(open('package.json'));dd={**d.get('dependencies',{}),**d.get('devDependencies',{})};sys.exit(0 if 'vitest' in dd else 1)\" 2>/dev/null )"
 # command = "python3 -c \"import json,os; d=json.load(open('package.json')) if os.path.exists('package.json') else {}; dd={**d.get('dependencies',{}),**d.get('devDependencies',{})}; req=dd.get('vitest',''); p='node_modules/vitest/package.json'; inst=(json.load(open(p)).get('version','') if os.path.exists(p) else ''); print((req+('('+inst+')' if inst else '')) if (req or inst) else '', end='')\" 2>/dev/null"
 style   = "color_vitest"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:color_vitest)[](bold fg:color_white bg:color_vitest)[](fg:color_vitest) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[](bold fg:color_vitest bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:color_vitest)[](bold fg:color_white bg:color_vitest)[](fg:color_vitest bg:color_overlay)\
 # [ $output](bold fg:color_vitest bg:color_overlay)[](fg:color_overlay) \
+# """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[](bold fg:color_vitest bg:color_grey)[](fg:color_grey)\
+# [ $output](bold fg:color_dim_white) \
 # """
 
 [custom.test_jest]
@@ -476,10 +693,18 @@ format = "[](fg:color_vitest)[](bold fg:color_white bg:color_vitest)[](
 when    = "( test -f jest.config.js || test -f jest.config.ts || test -f jest.config.mjs || test -f jest.config.cjs || test -f jest.config.json ) || ( test -f package.json && python3 -c \"import json,sys;d=json.load(open('package.json'));dd={**d.get('dependencies',{}),**d.get('devDependencies',{})};sys.exit(0 if ('jest' in dd or 'jest' in d) else 1)\" 2>/dev/null )"
 # command = "python3 -c \"import json,os; d=json.load(open('package.json')) if os.path.exists('package.json') else {}; dd={**d.get('dependencies',{}),**d.get('devDependencies',{})}; req=dd.get('jest',''); p='node_modules/jest/package.json'; inst=(json.load(open(p)).get('version','') if os.path.exists(p) else ''); print((req+('('+inst+')' if inst else '')) if (req or inst) else '', end='')\" 2>/dev/null"
 style   = "color_jest"
+# v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
 format = "[](fg:color_jest)[󰙨](bold fg:color_white bg:color_jest)[](fg:color_jest) "
+# v2 (less-color icon-only — INACTIVE):
+# format = "[](fg:color_grey)[󰙨](bold fg:color_jest bg:color_grey)[](fg:color_grey) "
 # --- verbose (version) below — uncomment block + command, remove icon-only line, to restore ---
 # format = """
 # [](fg:color_jest)[󰙨](bold fg:color_white bg:color_jest)[](fg:color_jest bg:color_overlay)\
 # [ $output](bold fg:color_jest bg:color_overlay)[](fg:color_overlay) \
+# """
+# v4 (less-color verbose — INACTIVE):
+# format = """
+# [](fg:color_grey)[󰙨](bold fg:color_jest bg:color_grey)[](fg:color_grey)\
+# [ $output](bold fg:color_dim_white) \
 # """
 

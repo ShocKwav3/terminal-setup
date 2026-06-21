@@ -93,11 +93,32 @@ local BAR_BG   = '#24252f'   -- tab bar background
 local TXT_DARK = '#101019'   -- text inside bright pills
 
 local C = {
-    tab    = '#bd93f9',      -- active tab (purple)
+    tab    = '#8d6ebb',      -- active tab (purple, dimmed) [orig #bd93f9]
     ram    = '#CB7E85',      -- RAM (salmon, dimmed)
     cpu    = '#D0BA88',      -- CPU (gold, dimmed)
     batt   = '#7DA6D0',      -- Battery (blue, dimmed)
 }
+
+-- ---- dynamic load colors (traffic light) ----------------------------
+-- brightness matched to dimmed tab (#8d6ebb, luminance ~122) [orig 88BA84/D0BA88/C7728A]
+local LOAD_GREEN  = '#61855e'
+local LOAD_YELLOW = '#887959'
+local LOAD_RED    = '#b6687e'
+
+-- CPU/RAM (high = bad): pct <= g -> green, <= y -> yellow, else red. nil -> green.
+local function ramp(pct, g, y)
+    if not pct then return LOAD_GREEN end
+    if pct <= g then return LOAD_GREEN end
+    if pct <= y then return LOAD_YELLOW end
+    return LOAD_RED
+end
+
+-- Battery (low = bad, inverted): <=25 red, <=60 yellow, else green
+local function batt_color(pct)
+    if pct <= 25 then return LOAD_RED end
+    if pct <= 60 then return LOAD_YELLOW end
+    return LOAD_GREEN
+end
 
 -- ---- slant edge glyphs ----------------------------------------------
 local SLANT_L = utf8.char(0xe0ba) -- ◢ left edge  (parallelogram lean) — status pills
@@ -189,8 +210,8 @@ local function get_mem()
         gb=$(echo "scale=1; $used/1073741824" | bc)
         printf "%s GB(%s%%)" "$gb" "$pct"
     ]] })
-    if not ok or not out or out == '' then return 'N/A' end
-    return out
+    if not ok or not out or out == '' then return 'N/A', nil end
+    return out, tonumber(out:match('%((%d+)%%%)'))
 end
 
 -- CPU: integer system usage % (user + sys), matching Activity Monitor's CPU Load.
@@ -210,7 +231,8 @@ local function get_cpu()
     -- columns end with: ... us sy id 1m 5m 15m  → us=f[n-5], sy=f[n-4]
     local n = #f
     local used = (tonumber(f[n - 5]) or 0) + (tonumber(f[n - 4]) or 0)
-    return tostring(math.floor(used + 0.5)) .. '%'
+    local pct = math.floor(used + 0.5)
+    return tostring(pct) .. '%', pct
 end
 
 -- Battery level icons, indexed by floor(pct/10): 0=empty .. 10=full
@@ -233,9 +255,7 @@ local function batt_pill()
     local icon = utf8.char(BATT_LEVEL[idx])
     if charging then icon = utf8.char(BATT_BOLT) .. ' ' .. icon end -- bolt before battery
 
-    local color = C.batt                      -- default blue
-    if charging then color = BATT_GREEN end   -- green while charging
-    if pct <= 20 then color = BATT_RED end    -- red when low (wins over charging)
+    local color = batt_color(pct)             -- dynamic: <=25 red, <=60 yellow, else green
 
     return pill(color, icon, pct .. '%')
 end
@@ -317,8 +337,10 @@ wezterm.on('update-right-status', function(window, _)
     add(net_render(wifi_state(), WIFI_COLOR, WIFI_ICON))
     add(net_render(bt_state(), BT_COLOR, BT_ICON))
 
-    add(pill(C.cpu, utf8.char(0xf4bc), get_cpu()))
-    add(pill(C.ram, utf8.char(0xefc5), get_mem()))
+    local cpu_txt, cpu_pct = get_cpu()
+    add(pill(ramp(cpu_pct, 65, 89), utf8.char(0xf4bc), cpu_txt))
+    local mem_txt, mem_pct = get_mem()
+    add(pill(ramp(mem_pct, 50, 89), utf8.char(0xefc5), mem_txt))
     local bp = batt_pill()
     if bp then add(bp) end
 
