@@ -29,21 +29,32 @@ cd terminal-setup
 ./install.sh
 ```
 
-The installer is **interactive and safe to re-run**:
+The installer is **interactive and safe to re-run**. After bootstrap (Xcode CLT →
+Homebrew → figlet) it walks **four segments**, each prompting before it acts:
 
-- Checks for each tool first; skips anything already installed.
-- Prints a one-line summary of what a tool is + why before asking.
-- Prompts before every install (Enter = yes).
-- Never overwrites a config silently — see [Config deployment](#config-deployment).
+1. **Terminal** — wezterm + the tools its config needs (Nerd Fonts, blueutil,
+   fastfetch) + `.wezterm.lua` / fastfetch config.
+2. **Shell** — oh-my-zsh + everything `.zshrc` integrates (starship, atuin, bat,
+   eza, zoxide, fzf, fd, ripgrep, jq, yazi, runtimes, …) + the `.config/*` configs.
+3. **Git** — identity + optional SSH key + git-delta (applied via `git config --global`).
+4. **Claude Code** — CLI + plugins + node shim + `~/.claude/settings.json`.
+
+Notes:
+- Each segment lists exactly what it installs and configures before you confirm.
+- The shell/terminal tools and their configs install **together** (a config without
+  its tools breaks the shell/terminal), so those segments are all-or-nothing.
+- Anything already present is skipped; configs are never overwritten silently
+  (`keep / overwrite / diff`). It ends with a summary of what was done.
 
 After it finishes: restart the terminal (or `source ~/.zshrc`) and select
 **MesloLGS Nerd Font** in your terminal app.
 
 ## What it installs
 
-**Bootstrap** (in order): Xcode Command Line Tools → Homebrew → oh-my-zsh.
+**Bootstrap** (in order): Xcode Command Line Tools → Homebrew → figlet.
 
-**Runtimes** (curl installers): `nvm`, `bun`, `uv`.
+**Runtimes** (curl installers): `nvm` + an LTS `node` (+ a `~/.local/bin/node` shim
+so non-interactive shells/hooks find node), `bun`, `uv`.
 
 **Homebrew formulae:**
 
@@ -54,7 +65,7 @@ After it finishes: restart the terminal (or `source ~/.zshrc`) and select
 | bat | `cat` with syntax highlighting (aliased to `cat`) |
 | eza | modern `ls` (aliased to `ls`) |
 | starship | shell prompt |
-| git-delta | git diff pager (wired in `.gitconfig`) |
+| git-delta | git diff pager (wired via `git config --global`) |
 | fastfetch | system info display |
 | blueutil | Bluetooth control from the CLI |
 | terminal-notifier | desktop notifications (omz `bgnotify`) |
@@ -67,6 +78,10 @@ After it finishes: restart the terminal (or `source ~/.zshrc`) and select
 
 **Casks:** `font-meslo-lg-nerd-font`, `font-symbols-only-nerd-font`, `wezterm`.
 
+**Claude Code** (native installer): the `claude` CLI, plus marketplaces + plugins
+(`superpowers`, `typescript-lsp`, `caveman`, `plannotator`) wired up via
+`claude plugin`, and a portable `~/.claude/settings.json`.
+
 **oh-my-zsh custom plugins** (git clone): `zsh-autosuggestions`,
 `fast-syntax-highlighting`.
 
@@ -74,22 +89,28 @@ After it finishes: restart the terminal (or `source ~/.zshrc`) and select
 
 ## Config deployment
 
-Configs live in `configs/` and are copied to their destinations:
+Configs live in `configs/` and are copied to their destinations during each segment:
 
 ```
-configs/home/   → $HOME            (.zshrc, .wezterm.lua, .gitconfig)
+configs/home/   → $HOME            (.zshrc, .wezterm.lua)
 configs/config/ → $HOME/.config    (atuin, bat, fastfetch, starship, yazi)
+configs/claude/ → $HOME/.claude    (settings.json)
 ```
 
-Deployment is gated by one confirm. For each file that already exists you choose:
+For each file that already exists you choose:
 
 - **k** — keep the existing file
 - **o** — overwrite (the old file is backed up to `<file>.bak.<timestamp>` first)
 - **d** — show a diff, then ask again
 
-**Git identity:** `configs/home/.gitconfig` ships **without** name/email. The
-installer prompts you for them and sets them via `git config --global` (so they're
-never committed to the repo).
+**Git:** no `.gitconfig` is copied — that would clobber a machine's existing git
+policy. The Git segment instead sets only what we need via `git config --global`:
+your name/email, `diff.colorMoved`, and (if you install git-delta) delta's pager
+settings. It can also generate an `ed25519` SSH key named per a context you give
+(e.g. `id_ed25519_personal`) and print the public key.
+
+**Claude Code:** `configs/claude/settings.json` is portable (no machine-specific
+paths) — caveman runs via its plugin + the node shim rather than absolute-path hooks.
 
 ### Starship prompt style
 
@@ -118,8 +139,11 @@ by hand). wezterm has no such toggle — its style is fixed.
 - **yazi theme:** the active flavor is `bluloco-dark` (set in
   `configs/config/yazi/theme.toml`). Flavors are vendored, so no extra download.
 - **nvm / bun / uv** are lazy-loaded in `.zshrc` — first use initializes them.
-- **Not included:** Claude Code / AI-tool configs (`opencode`, `ccstatusline`) are
-  intentionally left out of scope.
+- **node shim:** because nvm exposes `node` only as a lazy interactive function,
+  non-interactive `/bin/sh` hooks (e.g. Claude/caveman) can't find it. The installer
+  drops a `~/.local/bin/node` shim that resolves the newest nvm node at call time.
+- **Not included:** `opencode` config is intentionally left out of scope. (Claude
+  Code *is* now set up; `ccstatusline` runs via `bunx`, so it needs no vendored file.)
 - **Backups:** any overwritten config leaves a timestamped `.bak` next to it; clean
   those up yourself once you're happy.
 
@@ -133,7 +157,7 @@ keep only the active flavor and update `theme.toml` + `package.toml` to match.
 
 ```
 install.sh    # the entire installer (single file, bash 3.2-safe)
-configs/      # config files deployed to $HOME and $HOME/.config
+configs/      # config files deployed to $HOME, $HOME/.config, $HOME/.claude
 images/       # screenshots used in this README
 CLAUDE.md     # guidance for AI agents working in this repo
 README.md     # this file

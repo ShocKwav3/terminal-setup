@@ -4,11 +4,25 @@ Guidance for AI agents working in this repo.
 
 ## What this is
 
-A single-file macOS terminal-setup installer. Running `install.sh` provisions a
-fresh Mac: installs CLI tools / runtimes / fonts / shell plugins (checking first,
-prompting before each), then deploys the config files in `configs/` to `$HOME` and
-`$HOME/.config`. The installer holds **no** config inline — configs live in
-`configs/` and are copied at deploy time.
+A single-file macOS terminal-setup installer. Running `install.sh` bootstraps a
+fresh Mac (Xcode CLT → Homebrew → figlet) then walks **four segments**, each
+prompting before it acts:
+
+1. **Terminal** — wezterm + the tools its config hard-depends on (fonts, blueutil,
+   fastfetch) + `.wezterm.lua` / fastfetch config.
+2. **Shell** — oh-my-zsh + everything `.zshrc` integrates (starship, atuin, bat,
+   eza, zoxide, fzf, fd, ripgrep, jq, yazi+deps, terminal-notifier, runtimes incl.
+   node + the node shim, fzf-git) + the `.config/*` configs.
+3. **Git** — identity + optional SSH key + git-delta, applied via `git config
+   --global` (no `.gitconfig` is copied).
+4. **Claude Code** — native installer + plugins (via `claude plugin`) + node shim
+   + `~/.claude/settings.json`.
+
+Config-bearing shell/terminal tools install **and** configure together (the configs
+assume the tools), so those two segments are all-or-nothing. The installer holds
+**no** user config inline — configs live in `configs/` and are copied at deploy
+time. (The node shim is the one exception: installer infrastructure, generated
+inline, not a user config.)
 
 ## Layout
 
@@ -16,9 +30,11 @@ prompting before each), then deploys the config files in `configs/` to `$HOME` a
 install.sh            # the whole installer (bash 3.2-safe, no associative arrays)
 configs/
   home/               # → $HOME
-    .zshrc  .wezterm.lua  .gitconfig   # .gitconfig has NO [user] section
+    .zshrc  .wezterm.lua          # NO .gitconfig — git is set via `git config --global`
   config/             # → $HOME/.config
     atuin/ bat/ fastfetch/ starship/ yazi/
+  claude/             # → $HOME/.claude
+    settings.json                 # portable: no hooks block, no absolute paths
 ```
 
 ## Hard rules
@@ -30,29 +46,40 @@ configs/
   Verify with `/bin/bash -n install.sh`.
 - **Idempotent.** Every install step checks existence first and skips if present.
   Re-running must never reinstall or silently overwrite anything.
-- **Configs are never clobbered silently.** Deploy is gated by one top-level confirm,
-  then per-file `keep / overwrite / diff`. Overwrite backs up to
-  `<dest>.bak.<timestamp>` first.
-- **No Claude Code / AI-tool configs.** `opencode` and `ccstatusline` are
-  deliberately excluded from `configs/` (Claude Code-related, out of scope).
-- **`.gitconfig` identity is prompted, not stored.** The repo copy has the `[user]`
-  section stripped; `install.sh` prompts for name/email and writes them via
-  `git config --global`. Never commit a name/email into `configs/home/.gitconfig`.
+- **Configs are never clobbered silently.** Each config goes through `deploy`,
+  which prompts `keep / overwrite / diff` when the destination already exists;
+  overwrite backs up to `<dest>.bak.<timestamp>` first.
+- **Claude Code config is in scope; `opencode` is not.** `configs/claude/settings.json`
+  is vendored (portable: no `hooks` block, no absolute paths — caveman runs via its
+  plugin + the node shim). `opencode` stays excluded. `ccstatusline` needs no vendored
+  file (it's invoked via `bunx` from `settings.json`).
+- **No `.gitconfig` is vendored.** Git identity, the optional SSH key, and git-delta
+  are applied with `git config --global` / `ssh-keygen` so the target machine's own
+  git policy is preserved — we only add our keys. Never add a `configs/home/.gitconfig`.
+- **node shim.** `install_node_shim` writes `~/.local/bin/node` (resolves the newest
+  nvm node at call time) so non-interactive `/bin/sh` hooks — e.g. Claude/caveman —
+  can find `node`, which `.zshrc` only exposes as a lazy interactive function.
 
 ## install.sh structure (function map)
 
 - Output helpers: `info ok warn err step summary banner confirm`
-- Detection: `have brew_installed cask_installed`
-- Bootstrap: `ensure_xcode_clt ensure_homebrew ensure_omz`
-- `ensure_runtimes` — nvm / bun / uv (curl installers, not brew)
-- `ensure_formulae "<summary>" <pkg...>` / `ensure_casks ...` — grouped brew installs
-- `install_formulae install_casks install_omz_plugins install_fzf_git`
-- Deploy: `deploy <src> <dest>`, `show_diff`, `configure_git_identity`, `deploy_configs`
 - `prompt_choice "q" <default> <other>` — two-way picker, result in `REPLY_CHOICE`
+- `record <installed|configured|skipped> <item>` — appends to the `REC_*` summary arrays
+- Detection: `have brew_installed cask_installed`
+- `brew_formulae <pkg...>` / `brew_casks <pkg...>` — install the missing ones, record them
+- Bootstrap: `ensure_xcode_clt ensure_homebrew ensure_figlet`
+- Runtimes: `ensure_nvm ensure_node install_node_shim ensure_bun ensure_uv`
+  (`ensure_node` installs an LTS node — nvm alone provides no node — then the shim)
+- Shell helpers: `ensure_omz install_omz_plugins install_fzf_git`
+- Deploy: `deploy <src> <dest>`, `show_diff`
+- Segments: `segment_terminal segment_shell segment_git segment_claude`
+  - git uses `configure_git` (identity + `diff.colorMoved` + optional SSH key) and
+    `configure_git_delta` (4 `git config --global` lines incl. `merge.conflictStyle zdiff3`)
 - `apply_starship_variants` — prompts for the two starship axes and rewrites the
-  deployed `starship.toml` with an `awk` pass (see "starship prompt variants" below)
-- `post_install` — `bat cache --build` + final notes
-- `main` — runs the phases in order
+  deployed `starship.toml` with an `awk` pass (see "starship prompt variants" below).
+  Runs inside the Shell segment's configure step.
+- `final_summary` — figlet "All Done" banner + Installed/Configured/Skipped list + next steps
+- `main` — bootstrap, then the four segments, then `final_summary`
 
 `DEST_HOME`/`DEST_CONFIG` honor `INSTALL_HOME` env override for safe testing.
 
@@ -62,10 +89,18 @@ configs/
 bash -n install.sh && /bin/bash -n install.sh        # syntax + 3.2 compat
 ```
 
-To test deploy logic, never point at the real `$HOME`. Source the functions and
-drive them against a `mktemp -d`, feeding prompt answers on stdin, then `rm -rf`
-the temp dir. Example pattern: strip the trailing `main "$@"`, source the rest,
-override `CONFIGS_DIR`/`DEST_HOME`/`DEST_CONFIG`, call `deploy` with piped input.
+To test deploy/segment logic, never point at the real `$HOME`. Source the functions
+and drive them against a `mktemp -d`, feeding prompt answers on stdin, then `rm -rf`
+the temp dir. Pattern: strip the trailing `main "$@"`, source the rest, override
+`CONFIGS_DIR`/`DEST_HOME`/`DEST_CONFIG`, call a `segment_*` with piped input.
+
+Segments call `brew`/`curl`/`claude` (network/installs) — stub them on a temp `PATH`
+(a fake `brew` whose `list` exits 0 so everything reads as "already installed", a
+fake `claude`, etc.) and pre-seed the temp `$HOME` (`.nvm/versions/node/*`, `.bun`,
+`.oh-my-zsh`, …) so install steps short-circuit. The git/SSH/delta steps use
+`git config --global` + `ssh-keygen`, which hit the **real** `$HOME` regardless of
+`INSTALL_HOME` — override `HOME` (and `GIT_CONFIG_GLOBAL`) to the temp dir so the
+real `~/.gitconfig` / `~/.ssh` are never touched.
 
 To test the starship transform, copy `starship.toml` into a temp `DEST_CONFIG`,
 run `apply_starship_variants` with stdin answers, and verify the result with
