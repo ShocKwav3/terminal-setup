@@ -1,7 +1,7 @@
 
 export UV_TOOLS="$HOME/.local/bin"
-export BUN_INSTALL="$HOME/.bun/bin"
-export PATH="$BUN_INSTALL/bin:$BUN_INSTALL:$UV_TOOLS:$PATH"
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$UV_TOOLS:$PATH"
 
 # Path to your oh-my-zsh installation.
 export ZSH="$HOME/.oh-my-zsh"
@@ -114,7 +114,6 @@ function y() {
 # Custom stuff------------------------------------
 # eval "$(fzf --zsh)" # Moved to plugin section
 eval "$(atuin init zsh)"
-eval "$(zoxide init zsh)"
 eval "$(starship init zsh)"
 
 # if [ -z "$DISABLE_ZOXIDE" ]; then
@@ -126,3 +125,7 @@ HOMEBREW_COMMAND_NOT_FOUND_HANDLER="$(brew --repository)/Library/Homebrew/comman
 if [ -f "$HOMEBREW_COMMAND_NOT_FOUND_HANDLER" ]; then
   source "$HOMEBREW_COMMAND_NOT_FOUND_HANDLER";
 fi
+
+# zoxide must init LAST: it hooks precmd/chpwd, and any init that runs after it
+# (starship, the brew handler above) can clobber those hooks. Keep this at the end.
+eval "$(zoxide init zsh)"

@@ -2,10 +2,16 @@
 #
 # install.sh — reproducible Mac terminal setup installer.
 #
-# Installs the tools, runtimes, fonts and shell plugins this setup needs
-# (checking for each first and asking before installing), then deploys the
-# config files from ./configs to their destinations. Safe to re-run: nothing
-# already present is reinstalled, and configs are never overwritten silently.
+# Bootstraps a fresh Mac (Xcode CLT → Homebrew), then walks four segments, each
+# asking before it acts:
+#   1. Terminal     — wezterm + the tools its config hard-depends on
+#   2. Shell        — oh-my-zsh + everything .zshrc integrates
+#   3. Git          — identity / optional SSH key + git-delta (via git config)
+#   4. Claude Code  — CLI + plugins + node shim + settings.json
+# Config-bearing shell/terminal tools are installed *and* configured together
+# (the configs assume the tools), so those segments are all-or-nothing. Safe to
+# re-run: nothing already present is reinstalled, configs are never overwritten
+# silently. Ends with a summary of what was installed / configured / skipped.
 #
 # Written bash 3.2-safe (macOS default /bin/bash). No associative arrays.
 
@@ -82,14 +88,64 @@ prompt_choice() {
 }
 
 # ---------------------------------------------------------------------------
+# Run summary accumulators (indexed arrays — bash 3.2 safe)
+# ---------------------------------------------------------------------------
+REC_INSTALLED=()
+REC_CONFIGURED=()
+REC_SKIPPED=()
+
+# record <installed|configured|skipped> <item>
+record() {
+  case "$1" in
+    installed)  REC_INSTALLED+=("$2") ;;
+    configured) REC_CONFIGURED+=("$2") ;;
+    skipped)    REC_SKIPPED+=("$2") ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
 # Detection helpers
 # ---------------------------------------------------------------------------
 have()           { command -v "$1" >/dev/null 2>&1; }
 brew_installed() { brew list --formula "$1" >/dev/null 2>&1; }
 cask_installed() { brew list --cask "$1" >/dev/null 2>&1; }
 
+# brew_formulae <pkg...> — install any missing formulae in one go, record them.
+brew_formulae() {
+  if ! have brew; then warn "Homebrew unavailable — skipping:$(printf ' %s' "$@")"; return; fi
+  local missing="" p
+  for p in "$@"; do brew_installed "$p" || missing="$missing $p"; done
+  missing="${missing# }"
+  if [ -z "$missing" ]; then ok "Already installed:$(printf ' %s' "$@")"; return; fi
+  info "Installing:$( for p in $missing; do printf ' %s' "$p"; done )"
+  # shellcheck disable=SC2086
+  if brew install $missing; then
+    for p in $missing; do record installed "$p"; done
+    ok "Installed:$( for p in $missing; do printf ' %s' "$p"; done )"
+  else
+    err "Some installs failed:$missing"
+  fi
+}
+
+# brew_casks <pkg...> — same, for casks.
+brew_casks() {
+  if ! have brew; then warn "Homebrew unavailable — skipping:$(printf ' %s' "$@")"; return; fi
+  local missing="" p
+  for p in "$@"; do cask_installed "$p" || missing="$missing $p"; done
+  missing="${missing# }"
+  if [ -z "$missing" ]; then ok "Already installed:$(printf ' %s' "$@")"; return; fi
+  info "Installing:$( for p in $missing; do printf ' %s' "$p"; done )"
+  # shellcheck disable=SC2086
+  if brew install --cask $missing; then
+    for p in $missing; do record installed "$p"; done
+    ok "Installed:$( for p in $missing; do printf ' %s' "$p"; done )"
+  else
+    err "Some installs failed:$missing"
+  fi
+}
+
 # ---------------------------------------------------------------------------
-# Bootstrap
+# Bootstrap (prerequisites — run before the segments)
 # ---------------------------------------------------------------------------
 ensure_xcode_clt() {
   step "Xcode Command Line Tools"
@@ -107,6 +163,7 @@ ensure_xcode_clt() {
       exit 1
     fi
     ok "Installed."
+    record installed "Xcode Command Line Tools"
   else
     warn "Skipped — Homebrew install will likely fail without it."
   fi
@@ -122,215 +179,150 @@ ensure_homebrew() {
   if confirm "Install Homebrew?"; then
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" \
       && [ -x /opt/homebrew/bin/brew ] && eval "$(/opt/homebrew/bin/brew shellenv)"
-    if have brew; then ok "Installed."; else err "Homebrew install failed."; fi
+    if have brew; then ok "Installed."; record installed "Homebrew"; else err "Homebrew install failed."; fi
   else
     warn "Skipped — brew formulae/casks below will be skipped too."
   fi
 }
 
-ensure_omz() {
-  step "oh-my-zsh"
-  if [ -d "$HOME/.oh-my-zsh" ]; then
-    ok "Already installed."
-    return
-  fi
-  summary "Zsh framework providing the plugin system this setup relies on."
-  if confirm "Install oh-my-zsh?"; then
-    RUNZSH=no KEEP_ZSHRC=yes sh -c \
-      "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
-    [ -d "$HOME/.oh-my-zsh" ] && ok "Installed." || err "oh-my-zsh install failed."
-  else
-    warn "Skipped — custom plugins below will be skipped too."
-  fi
+# figlet powers the start/end banners — install quietly so they render.
+ensure_figlet() {
+  have figlet && return
+  have brew || return
+  brew install figlet >/dev/null 2>&1 && record installed "figlet" || true
 }
 
 # ---------------------------------------------------------------------------
-# Runtimes (curl installers, not brew)
+# Runtimes (curl installers, not brew) — called within the Shell segment
 # ---------------------------------------------------------------------------
-ensure_runtimes() {
-  step "Language runtimes"
-
+ensure_nvm() {
   if [ -d "$HOME/.nvm" ]; then
     ok "nvm already installed."
-  else
-    summary "nvm — Node version manager (lazy-loaded in .zshrc)."
-    if confirm "Install nvm?"; then
-      curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash \
-        && ok "nvm installed." || err "nvm install failed."
-    else
-      warn "Skipped nvm."
-    fi
+    return
   fi
+  info "Installing nvm…"
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash \
+    && { ok "nvm installed."; record installed "nvm"; } || err "nvm install failed."
+}
 
+# ensure_node — a node version must actually exist (nvm only provides the manager).
+# Needed by the node shim and by Claude plugin hooks. Installs the latest LTS.
+ensure_node() {
+  ensure_nvm
+  local d="$HOME/.nvm/versions/node"
+  if [ -d "$d" ] && [ -n "$(ls "$d" 2>/dev/null)" ]; then
+    ok "node already installed (nvm)."
+  elif [ -s "$HOME/.nvm/nvm.sh" ]; then
+    info "Installing latest LTS node via nvm…"
+    # shellcheck disable=SC1091
+    if ( export NVM_DIR="$HOME/.nvm"; \. "$HOME/.nvm/nvm.sh"; nvm install --lts ); then
+      ok "node (LTS) installed."; record installed "node (LTS)"
+    else
+      err "node install failed."
+    fi
+  else
+    warn "nvm not present — skipping node install."
+  fi
+  install_node_shim
+}
+
+# install_node_shim — make `node` resolvable for non-interactive shells. Claude
+# Code runs hooks via /bin/sh, which never sources ~/.zshrc, so nvm's lazy node()
+# function is absent and bare `node` fails. This shim (on ~/.local/bin, already on
+# PATH) resolves the newest installed nvm node at call time — survives nvm upgrades.
+# Interactive zsh is unaffected: the node() function in .zshrc shadows it.
+install_node_shim() {
+  local shim="$HOME/.local/bin/node"
+  mkdir -p "$HOME/.local/bin"
+  cat > "$shim" <<'SH'
+#!/bin/sh
+# nvm node shim for non-interactive shells (see install.sh: install_node_shim).
+d="$HOME/.nvm/versions/node"
+v="$(ls "$d" 2>/dev/null | sort -V | tail -1)"
+[ -n "$v" ] && exec "$d/$v/bin/node" "$@"
+echo "node: no nvm node found under $d" >&2
+exit 127
+SH
+  chmod +x "$shim"
+  ok "node shim ready → ~/.local/bin/node"
+  # ensure_node may run in both the Shell and Claude segments — record once.
+  if [ "${_SHIM_RECORDED:-0}" != 1 ]; then
+    record configured "node shim (~/.local/bin/node)"
+    _SHIM_RECORDED=1
+  fi
+}
+
+ensure_bun() {
   if have bun || [ -d "$HOME/.bun" ]; then
     ok "bun already installed."
-  else
-    summary "bun — fast JS runtime/package manager (on PATH via .zshrc)."
-    if confirm "Install bun?"; then
-      curl -fsSL https://bun.sh/install | bash && ok "bun installed." || err "bun install failed."
-    else
-      warn "Skipped bun."
-    fi
+    return
   fi
+  info "Installing bun…"
+  curl -fsSL https://bun.sh/install | bash \
+    && { ok "bun installed."; record installed "bun"; } || err "bun install failed."
+}
 
+ensure_uv() {
   if have uv || [ -x "$HOME/.local/bin/uv" ]; then
     ok "uv already installed."
-  else
-    summary "uv — Python package/tool manager (~/.local/bin on PATH)."
-    if confirm "Install uv?"; then
-      curl -LsSf https://astral.sh/uv/install.sh | sh && ok "uv installed." || err "uv install failed."
-    else
-      warn "Skipped uv."
-    fi
+    return
   fi
+  info "Installing uv…"
+  curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && { ok "uv installed."; record installed "uv"; } || err "uv install failed."
 }
 
 # ---------------------------------------------------------------------------
-# Homebrew formulae (grouped prompts)
+# oh-my-zsh + shell plugins (called within the Shell segment)
 # ---------------------------------------------------------------------------
-# ensure_formulae "summary line" formula [formula...]
-ensure_formulae() {
-  local summary_line="$1"; shift
-  local pkgs missing p
-  pkgs="$*"
-  missing=""
-  for p in "$@"; do
-    brew_installed "$p" || missing="$missing $p"
-  done
-  missing="${missing# }"
-  if [ -z "$missing" ]; then
-    ok "Already installed:$( for p in "$@"; do printf ' %s' "$p"; done )"
+ensure_omz() {
+  if [ -d "$HOME/.oh-my-zsh" ]; then
+    ok "oh-my-zsh already installed."
     return
   fi
-  summary "$summary_line"
-  info "Will install:${missing:+ }$missing"
-  if confirm "Install$( for p in $missing; do printf ' %s' "$p"; done )?"; then
-    # shellcheck disable=SC2086
-    brew install $missing && ok "Installed." || err "Some installs failed: $missing"
-  else
-    warn "Skipped: $missing"
-  fi
+  info "Installing oh-my-zsh…"
+  RUNZSH=no KEEP_ZSHRC=yes sh -c \
+    "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+  if [ -d "$HOME/.oh-my-zsh" ]; then ok "Installed."; record installed "oh-my-zsh"; else err "oh-my-zsh install failed."; fi
 }
 
-ensure_casks() {
-  local summary_line="$1"; shift
-  local missing p
-  missing=""
-  for p in "$@"; do
-    cask_installed "$p" || missing="$missing $p"
-  done
-  missing="${missing# }"
-  if [ -z "$missing" ]; then
-    ok "Already installed:$( for p in "$@"; do printf ' %s' "$p"; done )"
-    return
-  fi
-  summary "$summary_line"
-  info "Will install:${missing:+ }$missing"
-  if confirm "Install$( for p in $missing; do printf ' %s' "$p"; done )?"; then
-    # shellcheck disable=SC2086
-    brew install --cask $missing && ok "Installed." || err "Some installs failed: $missing"
-  else
-    warn "Skipped: $missing"
-  fi
-}
-
-install_formulae() {
-  if ! have brew; then
-    warn "Homebrew not available — skipping all brew formulae."
-    return
-  fi
-
-  step "yazi (terminal file manager)"
-  ensure_formulae \
-    "yazi + preview deps: ffmpeg, poppler (PDF), resvg (SVG), imagemagick, 7zip. (Also uses fd/rg/fzf/zoxide/jq — prompted separately.)" \
-    yazi ffmpeg-full poppler resvg imagemagick-full sevenzip
-
-  step "Standalone CLI tools"
-  ensure_formulae "atuin — magical shell history search (Ctrl-R)."                 atuin
-  ensure_formulae "bat — cat clone with syntax highlighting (aliased to cat)."     bat
-  ensure_formulae "eza — modern ls replacement (aliased to ls)."                   eza
-  ensure_formulae "starship — cross-shell prompt."                                 starship
-  ensure_formulae "git-delta — syntax-highlighting git pager (wired in .gitconfig)." git-delta
-  ensure_formulae "fastfetch — system info display."                               fastfetch
-  ensure_formulae "blueutil — Bluetooth control from the CLI."                     blueutil
-  ensure_formulae "terminal-notifier — desktop notifications (omz bgnotify)."      terminal-notifier
-  ensure_formulae "figlet — ASCII-art banners (used by this installer)."           figlet
-  ensure_formulae "fzf — fuzzy finder (shell plugin, fzf-git, previews)."          fzf
-  ensure_formulae "zoxide — smarter cd (aliased cd=z)."                            zoxide
-  ensure_formulae "fd — fast file find (fzf default command, yazi)."               fd
-  ensure_formulae "ripgrep — fast recursive grep."                                 ripgrep
-  ensure_formulae "jq — command-line JSON processor."                              jq
-}
-
-install_casks() {
-  if ! have brew; then
-    warn "Homebrew not available — skipping casks."
-    return
-  fi
-  step "Fonts"
-  ensure_casks "Nerd Fonts for terminal glyphs/powerline (MesloLGS used by wezterm)." \
-    font-meslo-lg-nerd-font font-symbols-only-nerd-font
-
-  step "wezterm (GPU terminal emulator)"
-  ensure_casks "wezterm — the terminal this config is built for (.wezterm.lua)." wezterm
-}
-
-# ---------------------------------------------------------------------------
-# oh-my-zsh custom plugins
-# ---------------------------------------------------------------------------
 install_omz_plugins() {
-  step "oh-my-zsh custom plugins"
   if [ ! -d "$HOME/.oh-my-zsh" ]; then
     warn "oh-my-zsh not installed — skipping custom plugins."
     return
   fi
   local zcustom="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
-  local need_as=0 need_fsh=0
-  [ -d "$zcustom/plugins/zsh-autosuggestions" ] || need_as=1
-  [ -d "$zcustom/plugins/fast-syntax-highlighting" ] || need_fsh=1
-  if [ "$need_as" -eq 0 ] && [ "$need_fsh" -eq 0 ]; then
-    ok "Already installed: zsh-autosuggestions, fast-syntax-highlighting."
-    return
-  fi
-  summary "zsh-autosuggestions (history-based suggestions) + fast-syntax-highlighting."
-  if confirm "Clone missing custom plugins?"; then
-    if [ "$need_as" -eq 1 ]; then
-      git clone --depth=1 https://github.com/zsh-users/zsh-autosuggestions \
-        "$zcustom/plugins/zsh-autosuggestions" && ok "zsh-autosuggestions cloned." \
-        || err "zsh-autosuggestions clone failed."
-    fi
-    if [ "$need_fsh" -eq 1 ]; then
-      git clone --depth=1 https://github.com/zdharma-continuum/fast-syntax-highlighting \
-        "$zcustom/plugins/fast-syntax-highlighting" && ok "fast-syntax-highlighting cloned." \
-        || err "fast-syntax-highlighting clone failed."
-    fi
+  if [ ! -d "$zcustom/plugins/zsh-autosuggestions" ]; then
+    git clone --depth=1 https://github.com/zsh-users/zsh-autosuggestions \
+      "$zcustom/plugins/zsh-autosuggestions" \
+      && { ok "zsh-autosuggestions cloned."; record installed "zsh-autosuggestions"; } \
+      || err "zsh-autosuggestions clone failed."
   else
-    warn "Skipped custom plugins."
+    ok "zsh-autosuggestions already present."
+  fi
+  if [ ! -d "$zcustom/plugins/fast-syntax-highlighting" ]; then
+    git clone --depth=1 https://github.com/zdharma-continuum/fast-syntax-highlighting \
+      "$zcustom/plugins/fast-syntax-highlighting" \
+      && { ok "fast-syntax-highlighting cloned."; record installed "fast-syntax-highlighting"; } \
+      || err "fast-syntax-highlighting clone failed."
+  else
+    ok "fast-syntax-highlighting already present."
   fi
 }
 
-# ---------------------------------------------------------------------------
-# fzf-git.sh
-# ---------------------------------------------------------------------------
 install_fzf_git() {
-  step "fzf-git.sh"
   local dest="$HOME/Documents/Tools/fzf-git.sh"
   if [ -d "$dest" ]; then
-    ok "Already cloned."
+    ok "fzf-git.sh already cloned."
     return
   fi
-  summary "Key bindings for git objects in fzf (sourced by .zshrc)."
-  if confirm "Clone fzf-git.sh to ~/Documents/Tools?"; then
-    mkdir -p "$HOME/Documents/Tools"
-    git clone --depth=1 https://github.com/junegunn/fzf-git.sh.git "$dest" \
-      && ok "Cloned." || err "fzf-git.sh clone failed."
-  else
-    warn "Skipped fzf-git.sh."
-  fi
+  mkdir -p "$HOME/Documents/Tools"
+  git clone --depth=1 https://github.com/junegunn/fzf-git.sh.git "$dest" \
+    && { ok "fzf-git.sh cloned."; record installed "fzf-git.sh"; } || err "fzf-git.sh clone failed."
 }
 
 # ---------------------------------------------------------------------------
-# Config deployment
+# Config deployment helpers
 # ---------------------------------------------------------------------------
 show_diff() {
   # show_diff <dest> <src>
@@ -373,49 +365,62 @@ deploy() {
   done
 }
 
-configure_git_identity() {
-  step "Git identity"
-  local cur_name cur_email name email
-  cur_name="$(git config --global user.name 2>/dev/null || true)"
-  cur_email="$(git config --global user.email 2>/dev/null || true)"
-  if [ -n "$cur_name" ] || [ -n "$cur_email" ]; then
-    info "Current: ${cur_name:-<unset>} <${cur_email:-unset}>"
-    confirm "Keep existing git name/email?" && { ok "Kept."; return; }
+# ---------------------------------------------------------------------------
+# Segment 1 — Terminal (wezterm + its hard dependencies)
+# ---------------------------------------------------------------------------
+segment_terminal() {
+  step "Terminal — wezterm"
+  summary "Installs: wezterm, MesloLGS + symbols Nerd Fonts, blueutil (wezterm BT status),"
+  summary "  fastfetch (wezterm runs it on startup)."
+  summary "Configures: ~/.wezterm.lua, ~/.config/fastfetch"
+  summary "The wezterm config depends on these, so they install + configure together."
+  if ! confirm "Set up the terminal (wezterm)?"; then
+    warn "Skipped terminal setup."; record skipped "Terminal (wezterm)"; return
   fi
-  printf '%s' "  git user.name${cur_name:+ [$cur_name]}: "; read -r name
-  printf '%s' "  git user.email${cur_email:+ [$cur_email]}: "; read -r email
-  [ -z "$name" ] && name="$cur_name"
-  [ -z "$email" ] && email="$cur_email"
-  [ -n "$name" ]  && git config --global user.name  "$name"
-  [ -n "$email" ] && git config --global user.email "$email"
-  ok "Set git identity: ${name:-<unset>} <${email:-unset}>"
+  brew_casks wezterm font-meslo-lg-nerd-font font-symbols-only-nerd-font
+  brew_formulae blueutil fastfetch
+  deploy "$CONFIGS_DIR/home/.wezterm.lua" "$DEST_HOME/.wezterm.lua"; record configured ".wezterm.lua"
+  mkdir -p "$DEST_CONFIG"
+  deploy "$CONFIGS_DIR/config/fastfetch" "$DEST_CONFIG/fastfetch"; record configured "fastfetch"
 }
 
-deploy_configs() {
-  step "Deploy config files"
-  summary "About to deploy into:"
-  summary "  $DEST_HOME/.zshrc  $DEST_HOME/.wezterm.lua  $DEST_HOME/.gitconfig"
-  summary "  $DEST_CONFIG/{atuin,bat,fastfetch,starship,yazi}"
-  summary "Existing files are never overwritten without asking (keep/overwrite/diff)."
-  if ! confirm "Deploy config files now?"; then
-    warn "Skipped all config deployment."
-    return
+# ---------------------------------------------------------------------------
+# Segment 2 — Shell (oh-my-zsh + everything .zshrc integrates)
+# ---------------------------------------------------------------------------
+segment_shell() {
+  step "Shell — zsh + oh-my-zsh"
+  summary "Installs: oh-my-zsh + plugins (zsh-autosuggestions, fast-syntax-highlighting),"
+  summary "  starship, atuin, bat, eza, zoxide, fzf, fd, ripgrep, jq,"
+  summary "  yazi (+ ffmpeg/poppler/resvg/imagemagick/sevenzip previews), terminal-notifier,"
+  summary "  nvm + node, bun, uv; clones fzf-git.sh."
+  summary "Configures: ~/.zshrc, ~/.config/{starship,atuin,bat,yazi}, node shim, bat theme, starship prompt style."
+  summary "Note: fd/ripgrep/jq power fzf & yazi — part of the shell, not optional here."
+  if ! confirm "Set up the shell (zsh + oh-my-zsh)?"; then
+    warn "Skipped shell setup."; record skipped "Shell (zsh/omz)"; return
   fi
 
-  deploy "$CONFIGS_DIR/home/.zshrc"     "$DEST_HOME/.zshrc"
-  deploy "$CONFIGS_DIR/home/.wezterm.lua" "$DEST_HOME/.wezterm.lua"
-  deploy "$CONFIGS_DIR/home/.gitconfig" "$DEST_HOME/.gitconfig"
+  # --- installs ---
+  ensure_omz
+  brew_formulae starship atuin bat eza zoxide fzf fd ripgrep jq \
+    yazi ffmpeg-full poppler resvg imagemagick-full sevenzip terminal-notifier
+  ensure_node      # nvm + node + shim
+  ensure_bun
+  ensure_uv
+  install_omz_plugins
+  install_fzf_git
 
+  # --- configs ---
+  deploy "$CONFIGS_DIR/home/.zshrc" "$DEST_HOME/.zshrc"; record configured ".zshrc"
   mkdir -p "$DEST_CONFIG"
   local d
-  for d in atuin bat fastfetch starship yazi; do
-    deploy "$CONFIGS_DIR/config/$d" "$DEST_CONFIG/$d"
+  for d in starship atuin bat yazi; do
+    deploy "$CONFIGS_DIR/config/$d" "$DEST_CONFIG/$d"; record configured "$d"
   done
-
   apply_starship_variants
-
-  # Git name/email injected separately (kept out of the repo's .gitconfig).
-  if have git; then configure_git_identity; fi
+  if have bat; then
+    bat cache --build >/dev/null 2>&1 && ok "Rebuilt bat theme cache (tokyonight)." \
+      || warn "bat cache --build failed (run it manually after install)."
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -526,17 +531,162 @@ apply_starship_variants() {
 }
 
 # ---------------------------------------------------------------------------
-# Post-install
+# Segment 3 — Git (+ git-delta)
 # ---------------------------------------------------------------------------
-post_install() {
-  step "Post-install"
-  if have bat; then
-    bat cache --build >/dev/null 2>&1 && ok "Rebuilt bat theme cache (tokyonight)." \
-      || warn "bat cache --build failed (run it manually after install)."
+# Identity, the optional SSH key, and git-delta are all applied via
+# `git config --global` / ssh-keygen rather than copying a .gitconfig, so the new
+# machine's own git policy is preserved — we only add our keys.
+segment_git() {
+  step "Git"
+  if have git; then
+    ok "git already installed ($(git --version 2>/dev/null))."
+  else
+    summary "git — version control (and the base git-delta plugs into)."
+    if confirm "Install git?"; then
+      brew_formulae git
+    else
+      warn "Skipped git — also skipping git config and git-delta."
+      record skipped "Git"
+      return
+    fi
+  fi
+  configure_git
+  configure_git_delta
+}
+
+configure_git() {
+  if ! confirm "Configure git (name/email, optional SSH key)?"; then
+    record skipped "git config"
+    return
+  fi
+  local name email
+  printf '%s' "  git user.name: ";  read -r name
+  printf '%s' "  git user.email: "; read -r email
+  [ -n "$name" ]  && git config --global user.name  "$name"
+  [ -n "$email" ] && git config --global user.email "$email"
+  git config --global diff.colorMoved default
+  ok "Set git identity: ${name:-<unset>} <${email:-unset}> (+ diff.colorMoved=default)"
+  record configured "git identity"
+
+  if confirm "Generate an SSH key (ed25519)?"; then
+    local ctx pass keyfile
+    printf '%s' "  context (e.g. personal, work): "; read -r ctx
+    [ -z "$ctx" ] && ctx="personal"
+    printf '%s' "  passphrase (empty for none): "; read -rs pass; printf '\n'
+    keyfile="$HOME/.ssh/id_ed25519_${ctx}"
+    mkdir -p "$HOME/.ssh"; chmod 700 "$HOME/.ssh"
+    if [ -f "$keyfile" ]; then
+      warn "Key already exists: $keyfile — skipping generation."
+    elif ssh-keygen -t ed25519 -C "${email:-$ctx}" -f "$keyfile" -N "$pass"; then
+      ok "SSH key created: $keyfile"
+      record configured "ssh key ($ctx)"
+      info "Public key (add to GitHub → https://github.com/settings/keys):"
+      cat "$keyfile.pub"
+    else
+      err "ssh-keygen failed."
+    fi
+  fi
+}
+
+configure_git_delta() {
+  step "git-delta"
+  if ! have git; then
+    warn "git not available — skipping git-delta."
+    return
+  fi
+  if brew_installed git-delta || have delta; then
+    ok "git-delta already installed."
+  else
+    summary "git-delta — syntax-highlighting diff pager for git."
+    if ! confirm "Install git-delta?"; then
+      warn "Skipped git-delta."; record skipped "git-delta"; return
+    fi
+    brew_formulae git-delta
+  fi
+  # Installed delta is useless unconfigured, so wire it up immediately.
+  git config --global core.pager delta
+  git config --global interactive.diffFilter 'delta --color-only'
+  git config --global delta.navigate true
+  git config --global merge.conflictStyle zdiff3
+  ok "Configured git-delta (pager, diffFilter, navigate, zdiff3)."
+  record configured "git-delta"
+}
+
+# ---------------------------------------------------------------------------
+# Segment 4 — Claude Code
+# ---------------------------------------------------------------------------
+segment_claude() {
+  step "Claude Code"
+  if have claude; then
+    ok "Claude Code already installed ($(claude --version 2>/dev/null))."
+  else
+    summary "Claude Code — Anthropic's agentic coding CLI (native installer)."
+    if confirm "Install Claude Code?"; then
+      info "Installing Claude Code…"
+      curl -fsSL https://claude.ai/install.sh | bash \
+        && { ok "Claude Code installed."; record installed "Claude Code"; } \
+        || err "Claude Code install failed."
+    else
+      warn "Skipped Claude Code."; record skipped "Claude Code"; return
+    fi
+  fi
+
+  summary "Configure will: ensure node + shim, add marketplaces (caveman, plannotator),"
+  summary "  install plugins (superpowers, typescript-lsp, caveman, plannotator),"
+  summary "  deploy ~/.claude/settings.json."
+  if ! confirm "Configure Claude Code now?"; then
+    record skipped "Claude config"
+    return
+  fi
+
+  # Plugin hooks (e.g. caveman) run via /bin/sh and call bare `node`; ensure node
+  # + the shim exist so they resolve. (Also done in the Shell segment; idempotent.)
+  ensure_node
+
+  if have claude; then
+    claude plugin marketplace add anthropics/claude-plugins-official 2>/dev/null \
+      && ok "marketplace: claude-plugins-official" || warn "marketplace claude-plugins-official: add failed or already present."
+    claude plugin marketplace add JuliusBrussee/caveman 2>/dev/null \
+      && ok "marketplace: caveman" || warn "marketplace caveman: add failed or already present."
+    claude plugin marketplace add backnotprop/plannotator 2>/dev/null \
+      && ok "marketplace: plannotator" || warn "marketplace plannotator: add failed or already present."
+    local p
+    for p in superpowers@claude-plugins-official typescript-lsp@claude-plugins-official \
+             caveman@caveman plannotator@plannotator; do
+      claude plugin install "$p" 2>/dev/null && ok "plugin: $p" \
+        || warn "plugin $p: install failed or already present."
+    done
+    record configured "claude plugins"
+  else
+    warn "claude CLI not available — skipping plugin install."
+  fi
+
+  mkdir -p "$DEST_HOME/.claude"
+  deploy "$CONFIGS_DIR/claude/settings.json" "$DEST_HOME/.claude/settings.json"
+  record configured "claude settings.json"
+}
+
+# ---------------------------------------------------------------------------
+# Final summary + banner
+# ---------------------------------------------------------------------------
+final_summary() {
+  step "Summary"
+  printf '%s\n' "${C_BOLD}Installed:${C_RESET}"
+  if [ "${#REC_INSTALLED[@]}" -gt 0 ]; then printf '  • %s\n' "${REC_INSTALLED[@]}"; else printf '%s\n' "${C_DIM}    (nothing new)${C_RESET}"; fi
+  printf '%s\n' "${C_BOLD}Configured:${C_RESET}"
+  if [ "${#REC_CONFIGURED[@]}" -gt 0 ]; then printf '  • %s\n' "${REC_CONFIGURED[@]}"; else printf '%s\n' "${C_DIM}    (nothing)${C_RESET}"; fi
+  if [ "${#REC_SKIPPED[@]}" -gt 0 ]; then
+    printf '%s\n' "${C_BOLD}Skipped:${C_RESET}"; printf '  • %s\n' "${REC_SKIPPED[@]}"
+  fi
+
+  printf '\n'
+  if command -v figlet >/dev/null 2>&1; then
+    figlet -w 100 "All Done" 2>/dev/null || printf '%s\n' "${C_BOLD}All Done${C_RESET}"
+  else
+    printf '%s\n' "${C_BOLD}========== All Done ==========${C_RESET}"
   fi
   cat <<EOF
-
-${C_GREEN}${C_BOLD}Done.${C_RESET} Next steps:
+${C_GREEN}${C_BOLD}Setup complete.${C_RESET} Next steps:
   • Restart your terminal, or run: ${C_BOLD}source ~/.zshrc${C_RESET}
   • In your terminal settings, select the ${C_BOLD}MesloLGS Nerd Font${C_RESET}.
   • nvm / bun / uv are lazy-loaded; first use initializes them.
@@ -553,16 +703,18 @@ main() {
   fi
   banner
 
+  # Bootstrap (prerequisites)
   ensure_xcode_clt
   ensure_homebrew
-  ensure_omz
-  ensure_runtimes
-  install_formulae
-  install_casks
-  install_omz_plugins
-  install_fzf_git
-  deploy_configs
-  post_install
+  ensure_figlet
+
+  # Segments
+  segment_terminal
+  segment_shell
+  segment_git
+  segment_claude
+
+  final_summary
 }
 
 main "$@"
