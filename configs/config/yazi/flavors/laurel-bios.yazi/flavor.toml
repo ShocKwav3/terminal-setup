@@ -1,0 +1,182 @@
+#:schema https://yazi-rs.github.io/schemas/theme.json
+
+# LAUREL BIOS flavour for Yazi (unaffiliated retro-firmware homage)
+# The classic blue CMOS-setup screen: deep blue desktop, single-line
+# CYAN frames, YELLOW titles, DOS 16-colour accents. Colours only — the chrome
+# (title bar / frame / legend) is applied by init.lua when this flavour is active.
+
+[app]
+overall = { bg = "#0000A8" }
+
+[mgr]
+
+# Current working directory (title path) — Award yellow
+cwd = { fg = "#FEFE54" }
+
+# Symlink
+symlink_target = { italic = true }
+
+# Marker
+marker_copied = { fg = "#FEFE54", bg = "#FEFE54" }
+marker_cut = { fg = "#FE5454", bg = "#FE5454" }
+marker_marked = { fg = "#FE54FE", bg = "#FE54FE" }
+marker_selected = { fg = "#54FEFE", bg = "#54FEFE" }
+
+# Count
+count_copied = { fg = "#0000A8", bg = "#FEFE54" }
+count_cut = { fg = "#0000A8", bg = "#FE5454" }
+count_selected = { fg = "#0000A8", bg = "#54FEFE" }
+
+# Border — Award cyan single-line frame
+border_symbol = "│"
+border_style = { fg = "#54FEFE" }
+
+# Find
+[mgr.find_keyword]
+fg = "#0000A8"
+bg = "#FEFE54"
+bold = true
+italic = true
+underline = true
+
+[mgr.find_position]
+fg = "#FFFFFF"
+bg = "reset"
+bold = true
+italic = true
+
+
+[indicator]
+parent = { reversed = true }
+current = { reversed = true }
+preview = { underline = true }
+padding = { open = "█", close = "█" }
+
+# Tabs — active tab as a raised cyan panel
+[tabs]
+active = { fg = "#0000A8", bg = "#54FEFE" }
+inactive = { fg = "#54FEFE", bg = "#000078" }
+
+# Separator
+sep_inner = { open = "", close = "" }
+sep_outer = { open = "", close = "" }
+
+
+[mode]
+
+# Normal mode
+normal_main = { fg = "#0000A8", bg = "#54FEFE" }
+normal_alt = { fg = "#54FEFE", bg = "#000078" }
+
+# Select mode
+select_main = { fg = "#0000A8", bg = "#FEFE54" }
+select_alt = { fg = "#FEFE54", bg = "#000078" }
+
+# Unset mode
+unset_main = { fg = "#FFFFFF", bg = "#A80000" }
+unset_alt = { fg = "#FE5454", bg = "#000078" }
+
+
+[status]
+overall = { fg = "#54FEFE", bg = "#000078" }
+sep_left = { open = "", close = "" }
+sep_right = { open = "", close = "" }
+
+perm_sep = { fg = "#3C7C9E" }
+perm_type = { fg = "#54FEFE" }
+perm_read = { fg = "#FEFE54" }
+perm_write = { fg = "#FE5454" }
+perm_exec = { fg = "#54FE54" }
+
+progress_label = { fg = "#FFFFFF", bold = true }
+progress_normal = { fg = "#54FEFE", bg = "#000078" }
+progress_error = { fg = "#FE5454", bg = "#000078" }
+
+
+[which]
+cols = 3
+mask = { bg = "#000078" }
+cand = { fg = "#FEFE54" }
+desc = { fg = "#54FEFE" }
+separator = " ➜ "
+separator_style = { fg = "#54FEFE" }
+
+
+[confirm]
+border = { fg = "#54FEFE" }
+title = { fg = "#FEFE54" }
+body = {}
+list = {}
+btn_yes = { fg = "#54FE54" }
+btn_no = { fg = "#FE5454" }
+btn_labels = ["Yes", "No"]
+
+
+[spot]
+border = { fg = "#54FEFE" }
+title = { fg = "#FEFE54" }
+tbl_col = { fg = "#54FEFE" }
+tbl_cell = { bg = "#0000D4" }
+
+
+[notify]
+title_info = { fg = "#54FEFE" }
+title_warn = { fg = "#FEFE54" }
+title_error = { fg = "#FE5454" }
+
+icon_info = ""
+icon_warn = ""
+icon_error = ""
+
+
+[pick]
+border = { fg = "#54FEFE" }
+active = { fg = "#FEFE54", bold = true }
+inactive = {}
+
+
+[input]
+border = { fg = "#54FEFE" }
+title = { fg = "#FEFE54" }
+value = {}
+selected = { reversed = true }
+
+
+[cmp]
+border = { fg = "#54FEFE" }
+active = { bg = "#0000D4" }
+inactive = {}
+
+icon_file = ""
+icon_folder = ""
+icon_command = ""
+
+
+[tasks]
+border = { fg = "#54FEFE" }
+title = { fg = "#FEFE54" }
+hovered = { bg = "#0000D4", bold = true }
+
+
+[help]
+on = { fg = "#FEFE54" }
+run = { fg = "#54FEFE" }
+desc = { fg = "#FFFFFF" }
+footer = { bg = "#000078", fg = "#54FEFE" }
+
+
+[filetype]
+rules = [
+	{ mime = "image/*", fg = "#FE54FE" },
+	{ mime = "video/*", fg = "#5454FE" },
+	{ mime = "audio/*", fg = "#54FEFE" },
+	{ mime = "application/{zip,rar,7z*,tar,gzip,xz,zstd,bzip*,lzma,compress,archive,cpio,arj,xar,ms-cab*}", fg = "#FE5454" },
+	{ mime = "application/{pdf,doc,rtf}", fg = "#54FE54" },
+	{ url = "*", is = "orphan", fg = "#FFFFFF", bg = "#A80000" },
+	{ url = "*", is = "exec", fg = "#54FE54" },
+	{ url = "*", is = "dummy", fg = "#FFFFFF", bg = "#A80000" },
+	{ url = "*/", is = "dummy", fg = "#FFFFFF", bg = "#A80000" },
+	# Files light, directories bright cyan
+	{ url = "*", fg = "#C6C6C6" },
+	{ url = "*/", fg = "#54FEFE" },
+]
