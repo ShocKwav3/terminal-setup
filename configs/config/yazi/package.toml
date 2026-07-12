@@ -1,7 +1,8 @@
+# The BIOS flavours (mega-bios / laurel-bios / firebird-bios) are hand-authored and
+# vendored in full under flavors/ — they have no upstream repo, so there are no
+# `ya pkg` deps to track here. Kept as an empty manifest so `ya pkg` stays happy.
 [plugin]
 deps = []
 
-[[flavor.deps]]
-use = "hankertrix/bluloco-yazi:bluloco-dark"
-rev = "97e2664"
-hash = "61d1a1b498a817cfdd87ea73a1b01767"
+[flavor]
+deps = []

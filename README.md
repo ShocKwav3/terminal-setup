@@ -8,18 +8,29 @@ without redoing it by hand.
 
 | | |
 |---|---|
-| ![starship prompt + wezterm tabs](images/sample1.png) | ![starship git status](images/sample3.png) |
+| ![starship prompt + wezterm tabs](images/starship-wezterm-tabs.png) | ![starship git status](images/starship-git-status.png) |
 | **starship** prompt + wezterm tab bar | dirty-tree git status in the prompt |
-| ![yazi file manager](images/sample2.png) | ![fzf + bat preview](images/sample4.png) |
-| **yazi** file manager (preview pane) | **fzf** finder with **bat** preview |
-| ![interactive cd](images/sample5.png) | ![fzf-git log browser](images/sample6.png) |
-| interactive `cd` completion | **fzf-git** commit browser |
-| ![bat syntax highlighting](images/sample7.png) | ![eza listing](images/sample8.png) |
-| **bat** syntax highlighting (`cat`) | **eza** listing (`ls`) |
-| ![atuin history search](images/sample9.png) | ![starship in a node project](images/sample10.png) |
-| **atuin** history search (Ctrl-R) | **starship** in a Node/pnpm project |
-| ![starship toolchain icons](images/sample11.png) | ![git details + wezterm status bar](images/sample12.png) |
-| toolchain icons (pnpm/React/Vitest) | git details + **wezterm** tab bar & status pills |
+| ![fzf-git log browser](images/fzf-git-log.png) | ![yazi MEGA BIOS theme](images/yazi-mega-bios.png) |
+| **fzf-git** commit browser | **yazi** file manager — retro BIOS theme |
+| ![eza listing](images/eza-listing.png) | ![fzf + bat preview](images/fzf-bat-preview.png) |
+| **eza** listing (`ls`) | **fzf** finder with **bat** preview |
+| ![bat syntax highlighting](images/bat-syntax-highlighting.png) | ![atuin history search](images/atuin-history-search.png) |
+| **bat** syntax highlighting (`cat`) | **atuin** history search (Ctrl-R) |
+| ![starship in a node project](images/starship-node-project.png) | ![interactive cd](images/interactive-cd.png) |
+| **starship** in a Node/pnpm project | interactive `cd` completion |
+| ![git details + wezterm status bar](images/wezterm-git-statusbar.png) | ![starship toolchain icons](images/starship-toolchain-icons.png) |
+| git details + **wezterm** tab bar & status pills | toolchain icons (pnpm/React/Vitest) |
+
+### yazi BIOS themes
+
+yazi is skinned as a Pentium-era firmware SETUP screen — a title bar with the
+current path + clock, a framed file area, and a key-legend / POST footer. The
+three looks are an unaffiliated retro homage (no real firmware vendor). The
+installer prompts which to activate (colours **and** chrome switch together):
+
+| MEGA BIOS | LAUREL BIOS | FIREBIRD |
+|---|---|---|
+| ![MEGA BIOS theme](images/yazi-mega-bios.png) | ![LAUREL BIOS theme](images/yazi-laurel-bios.png) | ![FIREBIRD theme](images/yazi-firebird-bios.png) |
 
 ## Usage
 
@@ -136,8 +147,12 @@ by hand). wezterm has no such toggle — its style is fixed.
 - **macOS only**, Apple Silicon assumed (Homebrew at `/opt/homebrew`).
 - **bat theme:** uses a custom `tokyonight_night` theme; the installer runs
   `bat cache --build` automatically at the end.
-- **yazi theme:** the active flavor is `bluloco-dark` (set in
-  `configs/config/yazi/theme.toml`). Flavors are vendored, so no extra download.
+- **yazi theme:** ships three vendored retro-BIOS themes (`mega-bios`, `laurel-bios`,
+  `firebird-bios` — an unaffiliated homage, not real firmware trademarks); the
+  installer prompts which to activate and writes it to the deployed
+  `~/.config/yazi/theme.toml`. The BIOS chrome is drawn by
+  `configs/config/yazi/init.lua`, which matches the active theme automatically.
+  All vendored, so no extra download.
 - **nvm / bun / uv** are lazy-loaded in `.zshrc` — first use initializes them.
 - **node shim:** because nvm exposes `node` only as a lazy interactive function,
   non-interactive `/bin/sh` hooks (e.g. Claude/caveman) can't find it. The installer
@@ -150,8 +165,9 @@ by hand). wezterm has no such toggle — its style is fixed.
 ## Updating the repo from your machine
 
 Edit files under `configs/` directly (not `~`). Keep the tree clean — no
-`.DS_Store`, `*.bak`, `.git` dirs, or theme `preview.png`/`README.md`. For yazi,
-keep only the active flavor and update `theme.toml` + `package.toml` to match.
+`.DS_Store`, `*.bak`, `.git` dirs, or theme `preview.png`/`README.md`. The yazi
+BIOS themes are hand-authored and vendored in full (all three kept); see
+`docs/DEVELOPMENT.md` for how the flavours + `init.lua` chrome fit together.
 
 ## Repo layout
 

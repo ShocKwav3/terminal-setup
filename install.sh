@@ -393,7 +393,7 @@ segment_shell() {
   summary "  starship, atuin, bat, eza, zoxide, fzf, fd, ripgrep, jq,"
   summary "  yazi (+ ffmpeg/poppler/resvg/imagemagick/sevenzip previews), terminal-notifier,"
   summary "  nvm + node, bun, uv; clones fzf-git.sh."
-  summary "Configures: ~/.zshrc, ~/.config/{starship,atuin,bat,yazi}, node shim, bat theme, starship prompt style."
+  summary "Configures: ~/.zshrc, ~/.config/{starship,atuin,bat,yazi}, node shim, bat theme, starship prompt style, yazi BIOS theme."
   summary "Note: fd/ripgrep/jq power fzf & yazi — part of the shell, not optional here."
   if ! confirm "Set up the shell (zsh + oh-my-zsh)?"; then
     warn "Skipped shell setup."; record skipped "Shell (zsh/omz)"; return
@@ -417,6 +417,7 @@ segment_shell() {
     deploy "$CONFIGS_DIR/config/$d" "$DEST_CONFIG/$d"; record configured "$d"
   done
   apply_starship_variants
+  apply_yazi_bios_theme
   if have bat; then
     bat cache --build >/dev/null 2>&1 && ok "Rebuilt bat theme cache (tokyonight)." \
       || warn "bat cache --build failed (run it manually after install)."
@@ -527,6 +528,48 @@ apply_starship_variants() {
   else
     rm -f "$tmp"
     err "Failed to apply starship variants — left starship.toml unchanged."
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Yazi BIOS theme
+# ---------------------------------------------------------------------------
+# The yazi config ships three vendored retro-BIOS flavours (mega-bios / laurel-bios
+# / firebird-bios); init.lua reads theme.toml at startup and auto-matches its
+# chrome (title bar, frame, legend) to whichever flavour is active. This prompts
+# for one of the three and rewrites the deployed theme.toml's `dark = "..."`.
+# theme.toml is tiny and fully generated, so we just overwrite it (no awk pass).
+# Guarded like the starship transform: only touch the file we shipped this run —
+# if the deployed theme.toml differs from the repo baseline (kept/customized),
+# leave the user's choice alone.
+apply_yazi_bios_theme() {
+  local f="$DEST_CONFIG/yazi/theme.toml"
+  local repo="$CONFIGS_DIR/config/yazi/theme.toml"
+  [ -f "$f" ] || return
+  if ! diff -q "$f" "$repo" >/dev/null 2>&1; then
+    info "yazi theme.toml differs from the repo copy (kept/custom) — leaving BIOS theme as-is."
+    return
+  fi
+
+  step "Yazi BIOS theme"
+  summary "Retro firmware skin for yazi. init.lua matches the chrome automatically."
+  summary "Default [1] reproduces the shipped look (MEGA BIOS)."
+  local choice="" reply
+  while true; do
+    printf '%s' "${C_BOLD}?${C_RESET} Which BIOS theme? ${C_DIM}[1] MEGA (default) / [2] LAUREL / [3] FIREBIRD${C_RESET} "
+    read -r reply
+    case "$reply" in
+      ""|1) choice="mega-bios";     break ;;
+      2)    choice="laurel-bios";   break ;;
+      3)    choice="firebird-bios"; break ;;
+      *)    warn "Enter 1, 2, or 3." ;;
+    esac
+  done
+
+  if printf '[flavor]\ndark = "%s"\n' "$choice" > "$f"; then
+    ok "Applied yazi BIOS theme: $choice."
+  else
+    err "Failed to write yazi theme.toml — left it unchanged."
   fi
 }
 
