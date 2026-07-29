@@ -9,13 +9,17 @@ configs.
 ## What this is
 
 A single-file macOS terminal-setup installer. `install.sh` bootstraps a fresh Mac
-(Xcode CLT → Homebrew → figlet), then walks **four segments**, each prompting
+(Xcode CLT → Homebrew → figlet), then walks **five segments**, each prompting
 before it acts:
 
 1. **Terminal** — wezterm + the tools its config hard-depends on + configs.
 2. **Shell** — oh-my-zsh + everything `.zshrc` integrates + the `.config/*` configs.
 3. **Git** — identity + optional SSH key + git-delta, via `git config --global`.
 4. **Claude Code** — native installer + plugins + node shim + `~/.claude/settings.json`.
+5. **Agent tooling** — herdr + hunk + `~/.config/herdr`; agent-CLI-agnostic, so the
+   herdr integration target (claude / codex / opencode / …) is **prompted for**, never
+   assumed. Runs after Claude so `herdr integration install claude` edits a
+   `~/.claude/settings.json` that has already been deployed.
 
 Config-bearing shell/terminal tools install **and** configure together (the configs
 assume the tools), so those segments are all-or-nothing. The installer holds **no**
@@ -32,6 +36,7 @@ configs/
   config/             # → $HOME/.config
     atuin/ bat/ fastfetch/ starship/
     yazi/             # init.lua (BIOS chrome) + 3 vendored bios flavors
+    herdr/            # config.toml only — session/log/lock files are runtime state
   claude/             # → $HOME/.claude
     settings.json                 # portable: no hooks block, no absolute paths
 docs/DEVELOPMENT.md   # function map, testing patterns, starship/yazi internals, target facts

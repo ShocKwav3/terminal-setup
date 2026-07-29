@@ -1,4 +1,18 @@
 {
+  "permissions": {
+    "deny": [
+      "DesignSync",
+      "NotebookEdit",
+      "PushNotification",
+      "RemoteTrigger",
+      "ScheduleWakeup",
+      "CronCreate",
+      "CronDelete",
+      "CronList",
+      "ReportFindings"
+    ]
+  },
+  "disableRemoteControl": true,
   "statusLine": {
     "type": "command",
     "command": "bunx -y ccstatusline@latest",
@@ -25,5 +39,7 @@
     }
   },
   "theme": "dark",
-  "model": "opus"
+  "model": "opus[1m]",
+  "effortLevel": "medium",
+  "autoMemoryEnabled": false
 }

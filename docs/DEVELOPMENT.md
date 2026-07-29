@@ -17,9 +17,14 @@ before touching the installer, the testing setup, or the starship / yazi configs
   (`ensure_node` installs an LTS node — nvm alone provides no node — then the shim)
 - Shell helpers: `ensure_omz install_omz_plugins install_fzf_git`
 - Deploy: `deploy <src> <dest>`, `show_diff`
-- Segments: `segment_terminal segment_shell segment_git segment_claude`
+- Segments: `segment_terminal segment_shell segment_git segment_claude segment_agent_tools`
   - git uses `configure_git` (identity + `diff.colorMoved` + optional SSH key) and
     `configure_git_delta` (4 `git config --global` lines incl. `merge.conflictStyle zdiff3`)
+  - agent tools use `install_herdr` (curl `herdr.dev/install.sh` → `~/.local/bin/herdr`),
+    `install_hunk` (`hunkdiff` via npm -g; npm is resolved out of the newest
+    `~/.nvm/versions/node/*/bin` the same way the node shim does, since npm is never
+    on a non-interactive PATH) and `install_herdr_integration` (prompts for the agent
+    CLI target and runs `herdr integration install <target>`; empty input skips)
 - `apply_starship_variants` — prompts for the two starship axes and rewrites the
   deployed `starship.toml` with an `awk` pass (see "starship prompt variants" below).
   Runs inside the Shell segment's configure step.
@@ -28,7 +33,7 @@ before touching the installer, the testing setup, or the starship / yazi configs
   "yazi BIOS themes" below). Same guard as starship: only touches a theme.toml that
   still byte-matches the repo baseline. Also runs in the Shell segment's configure step.
 - `final_summary` — figlet "All Done" banner + Installed/Configured/Skipped list + next steps
-- `main` — bootstrap, then the four segments, then `final_summary`
+- `main` — bootstrap, then the five segments, then `final_summary`
 
 `DEST_HOME`/`DEST_CONFIG` honor `INSTALL_HOME` env override for safe testing.
 
@@ -56,6 +61,13 @@ fake `claude`, etc.) and pre-seed the temp `$HOME` (`.nvm/versions/node/*`, `.bu
 `git config --global` + `ssh-keygen`, which hit the **real** `$HOME` regardless of
 `INSTALL_HOME` — override `HOME` (and `GIT_CONFIG_GLOBAL`) to the temp dir so the
 real `~/.gitconfig` / `~/.ssh` are never touched.
+
+`segment_agent_tools` has the same hazard, one level out: `install_herdr_integration`
+shells out to the real `herdr`, which rewrites the target agent's own config (for
+`claude`, `~/.claude/settings.json`) in the **real** `$HOME` no matter what
+`INSTALL_HOME` says. Stub `herdr` on the temp `PATH` (a script that echoes its args
+and exits 0) before driving that segment, or answer its prompt with an empty line to
+take the skip path.
 
 To test the starship transform, copy `starship.toml` into a temp `DEST_CONFIG`,
 run `apply_starship_variants` with stdin answers, and verify the result with

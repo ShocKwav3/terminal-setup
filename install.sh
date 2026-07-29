@@ -2,12 +2,13 @@
 #
 # install.sh — reproducible Mac terminal setup installer.
 #
-# Bootstraps a fresh Mac (Xcode CLT → Homebrew), then walks four segments, each
+# Bootstraps a fresh Mac (Xcode CLT → Homebrew), then walks five segments, each
 # asking before it acts:
 #   1. Terminal     — wezterm + the tools its config hard-depends on
 #   2. Shell        — oh-my-zsh + everything .zshrc integrates
 #   3. Git          — identity / optional SSH key + git-delta (via git config)
 #   4. Claude Code  — CLI + plugins + node shim + settings.json
+#   5. Agent tools  — herdr + hunk + herdr's integration with your agent CLI
 # Config-bearing shell/terminal tools are installed *and* configured together
 # (the configs assume the tools), so those segments are all-or-nothing. Safe to
 # re-run: nothing already present is reinstalled, configs are never overwritten
@@ -710,6 +711,104 @@ segment_claude() {
 }
 
 # ---------------------------------------------------------------------------
+# Segment 5 — Agent tooling (herdr + hunk)
+# ---------------------------------------------------------------------------
+# Agent-CLI-agnostic on purpose: herdr drives whichever coding agent you use, so
+# the integration target is prompted for rather than assumed. Runs after the
+# Claude segment because `herdr integration install claude` edits
+# ~/.claude/settings.json, which segment_claude has just deployed.
+segment_agent_tools() {
+  step "Agent tooling — herdr + hunk"
+  summary "Installs: herdr (terminal workspace manager for AI coding agents),"
+  summary "  hunkdiff (terminal diff viewer for agent-authored changesets, via npm -g)."
+  summary "Configures: ~/.config/herdr, plus an optional herdr integration for the"
+  summary "  agent CLI you actually use (claude, codex, opencode, cursor, …)."
+  if ! confirm "Set up agent tooling (herdr + hunk)?"; then
+    warn "Skipped agent tooling."; record skipped "Agent tooling (herdr/hunk)"; return
+  fi
+
+  install_herdr
+  install_hunk
+
+  mkdir -p "$DEST_CONFIG"
+  deploy "$CONFIGS_DIR/config/herdr" "$DEST_CONFIG/herdr"; record configured "herdr"
+
+  install_herdr_integration
+}
+
+install_herdr() {
+  if have herdr || [ -x "$HOME/.local/bin/herdr" ]; then
+    ok "herdr already installed."
+    return
+  fi
+  info "Installing herdr…"
+  curl -fsSL https://herdr.dev/install.sh | sh \
+    && { ok "herdr installed."; record installed "herdr"; } || err "herdr install failed."
+}
+
+# install_hunk — hunkdiff ships only via npm, and npm lives inside nvm's node dir
+# (never on a non-interactive PATH), so resolve the newest installed node the same
+# way the node shim does instead of relying on `have npm`.
+install_hunk() {
+  ensure_node
+  local d="$HOME/.nvm/versions/node" v bin
+  v="$(ls "$d" 2>/dev/null | sort -V | tail -1)"
+  if [ -z "$v" ]; then
+    warn "No nvm node found — skipping hunk."; record skipped "hunk"; return
+  fi
+  bin="$d/$v/bin"
+  if [ -x "$bin/hunk" ] || have hunk; then
+    ok "hunk already installed."
+    return
+  fi
+  info "Installing hunkdiff (npm -g)…"
+  local rc=0
+  PATH="$bin:$PATH" "$bin/npm" install -g hunkdiff >/dev/null 2>&1 || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    ok "hunk installed."; record installed "hunkdiff (hunk)"
+  else
+    err "hunkdiff install failed (npm exit $rc) — retry with: $bin/npm install -g hunkdiff"
+  fi
+}
+
+# install_herdr_integration — herdr wires itself into one agent CLI at a time by
+# writing that agent's own hook config. Which one is a user decision, so ask;
+# empty input skips. herdr validates the target itself, so no list is duplicated
+# here beyond the hint. Note for testing: herdr writes the target agent's config in
+# the real $HOME and ignores INSTALL_HOME — stub `herdr` on PATH before driving this
+# segment against a temp dir (see docs/DEVELOPMENT.md).
+install_herdr_integration() {
+  local herdr_bin target
+  if have herdr; then
+    herdr_bin="herdr"
+  elif [ -x "$HOME/.local/bin/herdr" ]; then
+    herdr_bin="$HOME/.local/bin/herdr"
+  else
+    warn "herdr not on PATH or in ~/.local/bin — skipping integration."
+    record skipped "herdr integration"
+    return
+  fi
+
+  summary "herdr integrates with one agent CLI at a time. Valid targets:"
+  summary "  pi, omp, claude, codex, copilot, devin, droid, kimi, opencode,"
+  summary "  kilo, hermes, qodercli, cursor, mastracode"
+  summary "This writes that agent's own hook config (for claude: ~/.claude/settings.json)."
+  printf '%s' "${C_BOLD}?${C_RESET} Which agent CLI should herdr integrate with? ${C_DIM}(empty = skip)${C_RESET} "
+  read -r target
+  if [ -z "$target" ]; then
+    info "Skipped herdr integration — run it later with: herdr integration install <target>"
+    record skipped "herdr integration"
+    return
+  fi
+  if "$herdr_bin" integration install "$target"; then
+    ok "herdr integration installed: $target"
+    record configured "herdr integration ($target)"
+  else
+    err "herdr integration install $target failed — run it manually once herdr is on PATH."
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Final summary + banner
 # ---------------------------------------------------------------------------
 final_summary() {
@@ -756,6 +855,7 @@ main() {
   segment_shell
   segment_git
   segment_claude
+  segment_agent_tools
 
   final_summary
 }
