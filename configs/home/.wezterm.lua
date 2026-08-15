@@ -14,22 +14,52 @@
 local wezterm = require("wezterm")
 local config = wezterm.config_builder()
 
-local theme = 'Tokyo Night Storm (Gogh)'
-
 -- ----------------------------------------------------------------------
 -- 2. Appearance
 -- ----------------------------------------------------------------------
-config.color_scheme = theme
+-- "Sumi Ink" — hand-rolled, deliberately low-saturation. Warm charcoal base,
+-- earth accents (sage / clay / sand / dusty blue / muted teal). No purple.
+-- Defined inline rather than via color_scheme so the tab-bar palette in
+-- section 5 can be tuned against the exact same values.
+local ink = {
+    bg        = '#15171a',   -- warm near-black
+    fg        = '#c8c5bc',   -- bone
+    cursor    = '#7fa8a3',   -- muted teal
+    sel_bg    = '#2e3238',
+    sel_fg    = '#d6d2c8',
+    split     = '#2e3238',
+    ansi = {
+        '#2a2c31', -- black
+        '#b06a6a', -- red      clay
+        '#8aa17a', -- green    sage
+        '#bfa878', -- yellow   sand
+        '#7d97b3', -- blue     dusty
+        '#b07f8b', -- magenta  rose (stands in for purple)
+        '#7fa8a3', -- cyan     muted teal
+        '#b8b5ae', -- white    warm grey
+    },
+    brights = {
+        '#3c3f45',
+        '#c4807f',
+        '#9fb58c',
+        '#d4bd8a',
+        '#93abc6',
+        '#c2949e',
+        '#93bab4',
+        '#d6d2c8',
+    },
+}
 
 config.font = wezterm.font("MesloLGS Nerd Font Mono")
 config.font_size = 15
 config.line_height = 1
 
+-- near-monochrome ink wash; just enough drift to avoid a flat slab
 config.window_background_gradient = {
     colors = {
-        '#23222aff',
-        '#1c1c33ff',
-        '#130626ff',
+        '#1d1f23ff',
+        '#17191dff',
+        '#101215ff',
     },
     orientation = 'Horizontal',
 }
@@ -89,21 +119,19 @@ config.keys = {
 -- ======================================================================
 
 -- ---- palette ---------------------------------------------------------
-local BAR_BG   = '#24252f'   -- tab bar background
-local TXT_DARK = '#101019'   -- text inside bright pills
+local BAR_BG   = '#1b1d21'   -- tab bar background (a shade above the window ink)
+local TXT_DARK = '#14161a'   -- text inside pills
 
 local C = {
-    tab    = '#8d6ebb',      -- active tab (purple, dimmed) [orig #bd93f9]
-    ram    = '#CB7E85',      -- RAM (salmon, dimmed)
-    cpu    = '#D0BA88',      -- CPU (gold, dimmed)
-    batt   = '#7DA6D0',      -- Battery (blue, dimmed)
+    tab = '#6f9a8f',         -- active tab: muted jade, the one accent that carries
 }
 
--- ---- dynamic load colors (traffic light) ----------------------------
--- brightness matched to dimmed tab (#8d6ebb, luminance ~122) [orig 88BA84/D0BA88/C7728A]
-local LOAD_GREEN  = '#61855e'
-local LOAD_YELLOW = '#887959'
-local LOAD_RED    = '#b6687e'
+-- ---- dynamic load colors (traffic light, heavily desaturated) --------
+-- brightness matched to the jade tab (#6f9a8f, luminance ~143) so nothing
+-- in the bar shouts louder than anything else.
+local LOAD_GREEN  = '#7d9470'
+local LOAD_YELLOW = '#9c8a63'
+local LOAD_RED    = '#a4696b'
 
 -- CPU/RAM (high = bad): pct <= g -> green, <= y -> yellow, else red. nil -> green.
 local function ramp(pct, g, y)
@@ -126,12 +154,22 @@ local SLANT_R = utf8.char(0xe0bc) -- ◤ right edge (parallelogram lean) — sta
 local TAB_L   = utf8.char(0xe0c7) -- active tab left edge
 local TAB_R   = utf8.char(0xe0c6) -- active tab right edge
 
--- bar background + colored new-tab (+) button
+-- terminal palette (section 2) + bar background + new-tab (+) button
 config.colors = {
+    foreground    = ink.fg,
+    background    = ink.bg,
+    cursor_bg     = ink.cursor,
+    cursor_fg     = ink.bg,
+    cursor_border = ink.cursor,
+    selection_bg  = ink.sel_bg,
+    selection_fg  = ink.sel_fg,
+    split         = ink.split,
+    ansi          = ink.ansi,
+    brights       = ink.brights,
     tab_bar = {
         background = BAR_BG,
-        new_tab       = { fg_color = '#A6E3A1', bg_color = BAR_BG },
-        new_tab_hover = { fg_color = BAR_BG,    bg_color = '#A6E3A1' },
+        new_tab       = { fg_color = C.tab, bg_color = BAR_BG },
+        new_tab_hover = { fg_color = BAR_BG, bg_color = C.tab },
     },
 }
 
@@ -150,9 +188,9 @@ local function pill(color, icon, text)
 end
 
 -- ---- network icons: wifi / bluetooth, 3 states each -----------------
-local INACTIVE   = '#D1D1D1'   -- off  = dim white
-local WIFI_COLOR = '#79B9AF'   -- teal (dimmed)
-local BT_COLOR   = '#7094CD'   -- blue (dimmed)
+local INACTIVE   = '#5f636b'   -- off  = recedes into the bar
+local WIFI_COLOR = '#7a9c96'   -- muted teal
+local BT_COLOR   = '#7d97b3'   -- dusty blue
 local BLUEUTIL   = '/opt/homebrew/bin/blueutil'
 
 local WIFI_ICON = { off = 0xf092d, on = 0xf0929, connected = 0xf0928 }
@@ -241,8 +279,6 @@ local BATT_LEVEL = {
     [5] = 0xf007e, [6] = 0xf007f, [7] = 0xf0080, [8] = 0xf0081, [9] = 0xf0082, [10] = 0xf0079,
 }
 local BATT_BOLT  = 0xf0e7    -- separate charging bolt, shown before the battery
-local BATT_GREEN = '#88BA84' -- charging (dimmed)
-local BATT_RED   = '#C7728A' -- low (dimmed)
 
 -- Battery pill (icon + color react to charge level & charging state); nil if no battery
 local function batt_pill()
@@ -260,7 +296,7 @@ local function batt_pill()
     return pill(color, icon, pct .. '%')
 end
 
--- ---- tab titles: slanted purple active tab, dim inactive -------------
+-- ---- tab titles: slanted jade active tab, dim inactive ---------------
 local function basename(p)
     if not p or p == '' then return '' end
     return (p:gsub('/+$', ''):match('[^/]+$')) or p
