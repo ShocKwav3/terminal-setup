@@ -13,7 +13,7 @@ format = """
 [╭──](fg:#ffffff) $directory\
 ${custom.pkg_npm}${custom.pkg_yarn}${custom.pkg_pnpm}${custom.pkg_bun}${custom.pkg_composer}\
 ${custom.lang_c}$cmake${custom.lang_cpp}${custom.runtime_node}${custom.runtime_bun}${custom.fw_react}${custom.fw_vue}${custom.test_vitest}${custom.test_jest}${custom.lang_python}${custom.lang_rust}${custom.lang_go}${custom.lang_java}${custom.lang_lua}${custom.lang_ruby}${custom.lang_php}\
-$fill$docker_context$terraform$helm$kubernetes$container$cmd_duration$status\n\
+$fill${custom.docker}$terraform$helm$kubernetes$container$cmd_duration$status\n\
 ([│](fg:#ffffff) $git_branch$git_status$git_commit$git_state$git_metrics\n)\
 [╰](fg:#ffffff)$character"""
 
@@ -319,19 +319,15 @@ format = "[](fg:$style)[](bold fg:color_white bg:$style)[](fg:$style) "
 #  Row 5 — Toolchain (auto-hides per directory)
 # ============================================================
 
-[docker_context]
-style           = "color_docker"
-only_with_files = false
+[custom.docker]
+# docker_context (builtin) hides for context "default" AND "desktop-linux" (Docker Desktop's
+# default context name) — always empty on stock Docker Desktop setups. Detect by project files instead.
+when    = "test -f Dockerfile || test -f docker-compose.yml || test -f docker-compose.yaml || test -f compose.yml || test -f compose.yaml"
+style   = "color_docker"
 # v1 (orig colorful — ACTIVE; to switch: comment this block, uncomment v2):
-format = """
-[](fg:$style)[](bold fg:color_white bg:$style)[](fg:$style bg:color_overlay)\
-[ $context](bold fg:$style bg:color_overlay)[](fg:color_overlay) \
-"""
+format = "[](fg:color_docker)[](bold fg:color_white bg:color_docker)[](fg:color_docker) "
 # v2 (less-color icon-only — INACTIVE):
-# format = """
-# [](fg:color_grey)[](bold fg:$style bg:color_grey)[](fg:color_grey)\
-# [$context](bold fg:color_dim_white) \
-# """
+# format = "[](fg:color_grey)[](bold fg:color_docker bg:color_grey)[](fg:color_grey) "
 
 [terraform]
 disabled = false

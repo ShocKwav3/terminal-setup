@@ -8,7 +8,8 @@
 #   2. Shell        — oh-my-zsh + everything .zshrc integrates
 #   3. Git          — identity / optional SSH key + git-delta (via git config)
 #   4. Claude Code  — CLI + plugins + node shim + settings.json
-#   5. Agent tools  — herdr + hunk + herdr's integration with your agent CLI
+#   5. Agent tools  — herdr + hunk + rtk + headroom + skillspector, wired into
+#                     the agent CLI you choose
 # Config-bearing shell/terminal tools are installed *and* configured together
 # (the configs assume the tools), so those segments are all-or-nothing. Safe to
 # re-run: nothing already present is reinstalled, configs are never overwritten
@@ -172,18 +173,45 @@ ensure_xcode_clt() {
 
 ensure_homebrew() {
   step "Homebrew"
+  # Installed by an earlier run but not on this shell's PATH (Apple Silicon puts
+  # brew in /opt/homebrew, which a fresh Mac's PATH lacks) — pick it up.
+  if ! have brew && [ -x /opt/homebrew/bin/brew ]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  fi
   if have brew; then
     ok "Already installed ($(brew --version | head -n1))."
+    persist_brew_shellenv
     return
   fi
   summary "Package manager used to install most CLI tools and fonts."
   if confirm "Install Homebrew?"; then
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" \
       && [ -x /opt/homebrew/bin/brew ] && eval "$(/opt/homebrew/bin/brew shellenv)"
-    if have brew; then ok "Installed."; record installed "Homebrew"; else err "Homebrew install failed."; fi
+    if have brew; then
+      ok "Installed."; record installed "Homebrew"
+      persist_brew_shellenv
+    else
+      err "Homebrew install failed."
+    fi
   else
     warn "Skipped — brew formulae/casks below will be skipped too."
   fi
+}
+
+# persist_brew_shellenv — Homebrew's script installer only *prints* the "add
+# shellenv to ~/.zprofile" step. Without it, new login shells can't find brew or
+# anything it installed: .zshrc's tools, and wezterm's `zsh -l -c fastfetch`
+# (non-interactive, so .zshrc never runs). Append-only and idempotent; skipped
+# when /opt/homebrew/bin is already on the system PATH (/etc/paths.d) or brew
+# lives in /usr/local (Intel, already on PATH).
+persist_brew_shellenv() {
+  local b=/opt/homebrew/bin/brew zp="$DEST_HOME/.zprofile"
+  [ -x "$b" ] || return
+  cat /etc/paths /etc/paths.d/* 2>/dev/null | grep -qx /opt/homebrew/bin && return
+  grep -qs 'brew shellenv' "$zp" && return
+  printf '\n# Homebrew (added by terminal-setup install.sh)\neval "$(%s shellenv)"\n' "$b" >> "$zp" \
+    && { ok "Added brew shellenv to $zp"; record configured "brew shellenv (~/.zprofile)"; } \
+    || err "Could not write $zp — add: eval \"\$($b shellenv)\""
 }
 
 # figlet powers the start/end banners — install quietly so they render.
@@ -271,6 +299,54 @@ ensure_uv() {
   info "Installing uv…"
   curl -LsSf https://astral.sh/uv/install.sh | sh \
     && { ok "uv installed."; record installed "uv"; } || err "uv install failed."
+}
+
+# npm_global <package> <bin> — `npm install -g` into the newest nvm node. npm lives
+# inside nvm's node dir (never on a non-interactive PATH), so resolve it the same
+# way the node shim does instead of relying on `have npm`.
+npm_global() {
+  local pkg="$1" name="$2"
+  ensure_node
+  local d="$HOME/.nvm/versions/node" v bin
+  v="$(ls "$d" 2>/dev/null | sort -V | tail -1)"
+  if [ -z "$v" ]; then
+    warn "No nvm node found — skipping $name."; record skipped "$name"; return
+  fi
+  bin="$d/$v/bin"
+  if [ -x "$bin/$name" ] || have "$name"; then
+    ok "$name already installed."
+    return
+  fi
+  info "Installing $pkg (npm -g)…"
+  local rc=0
+  PATH="$bin:$PATH" "$bin/npm" install -g "$pkg" >/dev/null 2>&1 || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    ok "$name installed."
+    if [ "$pkg" = "$name" ]; then record installed "$pkg"; else record installed "$pkg ($name)"; fi
+  else
+    err "$pkg install failed (npm exit $rc) — retry with: $bin/npm install -g $pkg"
+  fi
+}
+
+# uv_tool <bin> <python> <spec> — `uv tool install` a CLI into ~/.local/bin.
+# <python> pins the interpreter ("" = uv's default).
+uv_tool() {
+  local name="$1" py="$2" spec="$3" uv_bin
+  if have "$name" || [ -x "$HOME/.local/bin/$name" ]; then
+    ok "$name already installed."
+    return
+  fi
+  ensure_uv
+  if have uv; then uv_bin="uv"; else uv_bin="$HOME/.local/bin/uv"; fi
+  if [ ! -x "$uv_bin" ] && ! have "$uv_bin"; then
+    warn "uv unavailable — skipping $name."; record skipped "$name"; return
+  fi
+  info "Installing $name (uv tool)…"
+  if [ -n "$py" ]; then
+    "$uv_bin" tool install --python "$py" "$spec"
+  else
+    "$uv_bin" tool install "$spec"
+  fi && { ok "$name installed."; record installed "$name"; } || err "$name install failed."
 }
 
 # ---------------------------------------------------------------------------
@@ -371,14 +447,14 @@ deploy() {
 # ---------------------------------------------------------------------------
 segment_terminal() {
   step "Terminal — wezterm"
-  summary "Installs: wezterm, MesloLGS + symbols Nerd Fonts, blueutil (wezterm BT status),"
+  summary "Installs: wezterm, MesloLGS + JetBrains Mono + symbols Nerd Fonts, blueutil (wezterm BT status),"
   summary "  fastfetch (wezterm runs it on startup)."
   summary "Configures: ~/.wezterm.lua, ~/.config/fastfetch"
   summary "The wezterm config depends on these, so they install + configure together."
   if ! confirm "Set up the terminal (wezterm)?"; then
     warn "Skipped terminal setup."; record skipped "Terminal (wezterm)"; return
   fi
-  brew_casks wezterm font-meslo-lg-nerd-font font-symbols-only-nerd-font
+  brew_casks wezterm font-meslo-lg-nerd-font font-symbols-only-nerd-font font-jetbrains-mono-nerd-font
   brew_formulae blueutil fastfetch
   deploy "$CONFIGS_DIR/home/.wezterm.lua" "$DEST_HOME/.wezterm.lua"; record configured ".wezterm.lua"
   mkdir -p "$DEST_CONFIG"
@@ -393,7 +469,7 @@ segment_shell() {
   summary "Installs: oh-my-zsh + plugins (zsh-autosuggestions, fast-syntax-highlighting),"
   summary "  starship, atuin, bat, eza, zoxide, fzf, fd, ripgrep, jq,"
   summary "  yazi (+ ffmpeg/poppler/resvg/imagemagick/sevenzip previews), terminal-notifier,"
-  summary "  nvm + node, bun, uv; clones fzf-git.sh."
+  summary "  nvm + node, pnpm, bun, uv; clones fzf-git.sh."
   summary "Configures: ~/.zshrc, ~/.config/{starship,atuin,bat,yazi}, node shim, bat theme, starship prompt style, yazi BIOS theme."
   summary "Note: fd/ripgrep/jq power fzf & yazi — part of the shell, not optional here."
   if ! confirm "Set up the shell (zsh + oh-my-zsh)?"; then
@@ -405,6 +481,7 @@ segment_shell() {
   brew_formulae starship atuin bat eza zoxide fzf fd ripgrep jq \
     yazi ffmpeg-full poppler resvg imagemagick-full sevenzip terminal-notifier
   ensure_node      # nvm + node + shim
+  npm_global pnpm pnpm
   ensure_bun
   ensure_uv
   install_omz_plugins
@@ -582,7 +659,9 @@ apply_yazi_bios_theme() {
 # machine's own git policy is preserved — we only add our keys.
 segment_git() {
   step "Git"
-  if have git; then
+  # /usr/bin/git exists on a fresh Mac but is only a stub that pops the Command
+  # Line Tools dialog — count git as present only when CLT or brew's git is there.
+  if have git && { xcode-select -p >/dev/null 2>&1 || brew_installed git; }; then
     ok "git already installed ($(git --version 2>/dev/null))."
   else
     summary "git — version control (and the base git-delta plugs into)."
@@ -675,17 +754,31 @@ segment_claude() {
     fi
   fi
 
-  summary "Configure will: ensure node + shim, add marketplaces (caveman, plannotator),"
-  summary "  install plugins (superpowers, typescript-lsp, caveman, plannotator),"
-  summary "  deploy ~/.claude/settings.json."
+  summary "Configure will: ensure node + shim and bun (status line runs via bunx),"
+  summary "  deploy ~/.claude/settings.json + ~/.config/ccstatusline,"
+  summary "  add marketplaces (caveman, plannotator, prismantis),"
+  summary "  install plugins (superpowers, typescript-lsp, caveman, plannotator, prismantis)."
   if ! confirm "Configure Claude Code now?"; then
     record skipped "Claude config"
     return
   fi
 
   # Plugin hooks (e.g. caveman) run via /bin/sh and call bare `node`; ensure node
-  # + the shim exist so they resolve. (Also done in the Shell segment; idempotent.)
+  # + the shim exist so they resolve. settings.json's statusLine runs
+  # `bunx ccstatusline`, so bun is needed too. (Both also done in the Shell
+  # segment; idempotent.)
   ensure_node
+  ensure_bun
+
+  # Deploy before installing plugins: `claude plugin install` creates/edits
+  # settings.json, which would otherwise turn a fresh deploy into a keep/overwrite
+  # prompt. The plugins it enables are already listed in the vendored file.
+  mkdir -p "$DEST_HOME/.claude"
+  deploy "$CONFIGS_DIR/claude/settings.json" "$DEST_HOME/.claude/settings.json"
+  record configured "claude settings.json"
+  mkdir -p "$DEST_CONFIG"
+  deploy "$CONFIGS_DIR/config/ccstatusline" "$DEST_CONFIG/ccstatusline"
+  record configured "ccstatusline"
 
   if have claude; then
     claude plugin marketplace add anthropics/claude-plugins-official 2>/dev/null \
@@ -694,9 +787,11 @@ segment_claude() {
       && ok "marketplace: caveman" || warn "marketplace caveman: add failed or already present."
     claude plugin marketplace add backnotprop/plannotator 2>/dev/null \
       && ok "marketplace: plannotator" || warn "marketplace plannotator: add failed or already present."
+    claude plugin marketplace add NahumLitvin/prismantis 2>/dev/null \
+      && ok "marketplace: prismantis" || warn "marketplace prismantis: add failed or already present."
     local p
     for p in superpowers@claude-plugins-official typescript-lsp@claude-plugins-official \
-             caveman@caveman plannotator@plannotator; do
+             caveman@caveman plannotator@plannotator prismantis@prismantis; do
       claude plugin install "$p" 2>/dev/null && ok "plugin: $p" \
         || warn "plugin $p: install failed or already present."
     done
@@ -704,10 +799,6 @@ segment_claude() {
   else
     warn "claude CLI not available — skipping plugin install."
   fi
-
-  mkdir -p "$DEST_HOME/.claude"
-  deploy "$CONFIGS_DIR/claude/settings.json" "$DEST_HOME/.claude/settings.json"
-  record configured "claude settings.json"
 }
 
 # ---------------------------------------------------------------------------
@@ -718,22 +809,31 @@ segment_claude() {
 # Claude segment because `herdr integration install claude` edits
 # ~/.claude/settings.json, which segment_claude has just deployed.
 segment_agent_tools() {
-  step "Agent tooling — herdr + hunk"
+  step "Agent tooling — herdr + hunk + rtk + headroom + skillspector"
   summary "Installs: herdr (terminal workspace manager for AI coding agents),"
-  summary "  hunkdiff (terminal diff viewer for agent-authored changesets, via npm -g)."
-  summary "Configures: ~/.config/herdr, plus an optional herdr integration for the"
-  summary "  agent CLI you actually use (claude, codex, opencode, cursor, …)."
-  if ! confirm "Set up agent tooling (herdr + hunk)?"; then
-    warn "Skipped agent tooling."; record skipped "Agent tooling (herdr/hunk)"; return
+  summary "  hunkdiff (terminal diff viewer for agent-authored changesets, via npm -g),"
+  summary "  rtk (token-saving CLI proxy for agent shell commands, via brew),"
+  summary "  headroom (context optimization layer + MCP server, via uv tool),"
+  summary "  skillspector (security scanner for agent skills, via uv tool)."
+  summary "Configures: ~/.config/herdr, plus optional herdr / rtk integrations for the"
+  summary "  agent CLI you actually use (claude, codex, opencode, cursor, …) and the"
+  summary "  headroom MCP server for Claude Code."
+  if ! confirm "Set up agent tooling (herdr + hunk + rtk + headroom + skillspector)?"; then
+    warn "Skipped agent tooling."; record skipped "Agent tooling"; return
   fi
 
   install_herdr
-  install_hunk
+  npm_global hunkdiff hunk
+  install_rtk
+  uv_tool headroom 3.13 "headroom-ai[all]"
+  uv_tool skillspector "" "git+https://github.com/NVIDIA/skillspector.git"
 
   mkdir -p "$DEST_CONFIG"
   deploy "$CONFIGS_DIR/config/herdr" "$DEST_CONFIG/herdr"; record configured "herdr"
 
   install_herdr_integration
+  install_rtk_integration
+  install_headroom_mcp
 }
 
 install_herdr() {
@@ -746,29 +846,82 @@ install_herdr() {
     && { ok "herdr installed."; record installed "herdr"; } || err "herdr install failed."
 }
 
-# install_hunk — hunkdiff ships only via npm, and npm lives inside nvm's node dir
-# (never on a non-interactive PATH), so resolve the newest installed node the same
-# way the node shim does instead of relying on `have npm`.
-install_hunk() {
-  ensure_node
-  local d="$HOME/.nvm/versions/node" v bin
-  v="$(ls "$d" 2>/dev/null | sort -V | tail -1)"
-  if [ -z "$v" ]; then
-    warn "No nvm node found — skipping hunk."; record skipped "hunk"; return
-  fi
-  bin="$d/$v/bin"
-  if [ -x "$bin/hunk" ] || have hunk; then
-    ok "hunk already installed."
+# install_rtk — brew formula; also accept an existing curl-installed copy in
+# ~/.local/bin so it is never installed twice.
+install_rtk() {
+  if have rtk || [ -x "$HOME/.local/bin/rtk" ]; then
+    ok "rtk already installed."
     return
   fi
-  info "Installing hunkdiff (npm -g)…"
-  local rc=0
-  PATH="$bin:$PATH" "$bin/npm" install -g hunkdiff >/dev/null 2>&1 || rc=$?
-  if [ "$rc" -eq 0 ]; then
-    ok "hunk installed."; record installed "hunkdiff (hunk)"
+  brew_formulae rtk
+}
+
+# install_rtk_integration — like herdr, rtk hooks one agent CLI at a time (it adds
+# a PreToolUse hook + RTK.md to that agent's global config), so ask; empty input
+# skips. codex / copilot / gemini are flags of their own, everything else goes
+# through --agent; rtk validates the name. Testing: writes the real $HOME, so
+# stub `rtk` on PATH (see docs/DEVELOPMENT.md).
+install_rtk_integration() {
+  local rtk_bin target
+  if have rtk; then
+    rtk_bin="rtk"
+  elif [ -x "$HOME/.local/bin/rtk" ]; then
+    rtk_bin="$HOME/.local/bin/rtk"
   else
-    err "hunkdiff install failed (npm exit $rc) — retry with: $bin/npm install -g hunkdiff"
+    warn "rtk not on PATH or in ~/.local/bin — skipping integration."
+    record skipped "rtk integration"
+    return
   fi
+
+  summary "rtk rewrites an agent's shell commands to save tokens. Targets include:"
+  summary "  claude, codex, copilot, gemini, cursor, windsurf, cline, pi, hermes, …"
+  summary "  (full list: rtk init --help)"
+  printf '%s' "${C_BOLD}?${C_RESET} Which agent CLI should rtk hook into? ${C_DIM}(empty = skip)${C_RESET} "
+  read -r target
+  if [ -z "$target" ]; then
+    info "Skipped rtk integration — run it later with: rtk init -g --agent <target>"
+    record skipped "rtk integration"
+    return
+  fi
+  local rc=0
+  case "$target" in
+    codex|copilot|gemini) "$rtk_bin" init -g "--$target" || rc=$? ;;
+    *)                    "$rtk_bin" init -g --agent "$target" || rc=$? ;;
+  esac
+  if [ "$rc" -eq 0 ]; then
+    ok "rtk integration installed: $target"
+    record configured "rtk integration ($target)"
+  else
+    err "rtk init for $target failed — run it manually: rtk init -g --agent $target"
+  fi
+}
+
+# install_headroom_mcp — register `headroom mcp serve` as a user-scope MCP server
+# in Claude Code. Written by `claude mcp add` into ~/.claude.json (not
+# settings.json), with the absolute path resolved on this machine. Testing: hits
+# the real ~/.claude.json, so stub `claude` on PATH.
+install_headroom_mcp() {
+  local hr="$HOME/.local/bin/headroom"
+  if ! have claude; then
+    info "claude CLI not available — skipping headroom MCP."
+    return
+  fi
+  if [ ! -x "$hr" ]; then
+    warn "headroom not in ~/.local/bin — skipping its MCP server."
+    record skipped "headroom MCP"
+    return
+  fi
+  if claude mcp get headroom >/dev/null 2>&1; then
+    ok "headroom MCP server already registered."
+    return
+  fi
+  if ! confirm "Register headroom as a Claude Code MCP server (user scope)?"; then
+    record skipped "headroom MCP"
+    return
+  fi
+  claude mcp add --scope user headroom -- "$hr" mcp serve \
+    && { ok "headroom MCP server registered."; record configured "headroom MCP (claude)"; } \
+    || err "claude mcp add headroom failed — run: claude mcp add --scope user headroom -- $hr mcp serve"
 }
 
 # install_herdr_integration — herdr wires itself into one agent CLI at a time by
@@ -833,6 +986,24 @@ ${C_GREEN}${C_BOLD}Setup complete.${C_RESET} Next steps:
   • In your terminal settings, select the ${C_BOLD}MesloLGS Nerd Font${C_RESET}.
   • nvm / bun / uv are lazy-loaded; first use initializes them.
 EOF
+  optional_extras
+}
+
+# optional_extras — tools used on the source machine but deliberately not
+# installed here (project-specific or personal). Printed as a reminder only.
+optional_extras() {
+  printf '\n%s\n' "${C_BOLD}Optional extras${C_RESET} ${C_DIM}(not installed — add any you want):${C_RESET}"
+  cat <<EOF
+  • k6                — load testing            ${C_DIM}brew install k6${C_RESET}
+  • kustomize         — k8s manifest overlays   ${C_DIM}brew install kustomize${C_RESET}
+  • minikube          — local k8s cluster       ${C_DIM}brew install minikube${C_RESET}
+  • headlamp          — k8s desktop UI          ${C_DIM}brew install --cask headlamp${C_RESET}
+  • taproom           — TUI for Homebrew        ${C_DIM}brew install taproom${C_RESET}
+  • aws               — AWS CLI                 ${C_DIM}brew install awscli${C_RESET}
+  • gemini            — Gemini CLI              ${C_DIM}npm install -g @google/gemini-cli${C_RESET}
+  • opencode          — opencode agent CLI      ${C_DIM}curl -fsSL https://opencode.ai/install | bash${C_RESET}
+  • tokensave         — code graph for agents   ${C_DIM}https://github.com/aovestdipaperino/tokensave${C_RESET}
+EOF
 }
 
 # ---------------------------------------------------------------------------
@@ -844,6 +1015,15 @@ main() {
     exit 1
   fi
   banner
+
+  # The curl installers (claude, herdr, uv + its tools) drop binaries in
+  # ~/.local/bin, which a fresh Mac doesn't have on PATH. Add it for this run so
+  # later steps (`claude plugin`, `claude mcp add`, …) find what earlier ones
+  # installed. Shells get it from .zshrc.
+  case ":$PATH:" in
+    *":$HOME/.local/bin:"*) ;;
+    *) export PATH="$HOME/.local/bin:$PATH" ;;
+  esac
 
   # Bootstrap (prerequisites)
   ensure_xcode_clt

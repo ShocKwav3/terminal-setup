@@ -16,9 +16,10 @@ before it acts:
 2. **Shell** — oh-my-zsh + everything `.zshrc` integrates + the `.config/*` configs.
 3. **Git** — identity + optional SSH key + git-delta, via `git config --global`.
 4. **Claude Code** — native installer + plugins + node shim + `~/.claude/settings.json`.
-5. **Agent tooling** — herdr + hunk + `~/.config/herdr`; agent-CLI-agnostic, so the
-   herdr integration target (claude / codex / opencode / …) is **prompted for**, never
-   assumed. Runs after Claude so `herdr integration install claude` edits a
+5. **Agent tooling** — herdr + hunk + rtk + headroom + skillspector + `~/.config/herdr`;
+   agent-CLI-agnostic, so the herdr / rtk integration targets (claude / codex /
+   opencode / …) are **prompted for**, never assumed. Runs after Claude so
+   `herdr integration install claude` / `rtk init -g` edit a
    `~/.claude/settings.json` that has already been deployed.
 
 Config-bearing shell/terminal tools install **and** configure together (the configs
@@ -37,6 +38,7 @@ configs/
     atuin/ bat/ fastfetch/ starship/
     yazi/             # init.lua (BIOS chrome) + 3 vendored bios flavors
     herdr/            # config.toml only — session/log/lock files are runtime state
+    ccstatusline/     # settings.json — Claude Code status line layout
   claude/             # → $HOME/.claude
     settings.json                 # portable: no hooks block, no absolute paths
 docs/DEVELOPMENT.md   # function map, testing patterns, starship/yazi internals, target facts
@@ -59,8 +61,9 @@ docs/DEVELOPMENT.md   # function map, testing patterns, starship/yazi internals,
   dirs, or theme `preview.png` / `README.md`.
 - **Claude Code config is in scope; `opencode` is not.** `configs/claude/settings.json`
   is vendored (portable: no `hooks` block, no absolute paths — caveman runs via its
-  plugin + the node shim). `opencode` stays excluded. `ccstatusline` needs no vendored
-  file (it's invoked via `bunx` from `settings.json`).
+  plugin + the node shim). `opencode` stays excluded. `ccstatusline` is invoked via
+  `bunx` from `settings.json`; its layout lives in `configs/config/ccstatusline/` and
+  is deployed by the Claude segment.
 - **No `.gitconfig` is vendored.** Git identity, the optional SSH key, and git-delta
   are applied with `git config --global` / `ssh-keygen` so the target machine's own
   git policy is preserved — we only add our keys. Never add a `configs/home/.gitconfig`.

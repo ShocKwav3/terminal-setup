@@ -44,21 +44,25 @@ The installer is **interactive and safe to re-run**. After bootstrap (Xcode CLT 
 Homebrew → figlet) it walks **five segments**, each prompting before it acts:
 
 1. **Terminal** — wezterm + the tools its config needs (Nerd Fonts, blueutil,
-   fastfetch) + `.wezterm.lua` / fastfetch config.
+   fastfetch) + `.wezterm.lua` (translucent ink background with a subtle dot grid) /
+   fastfetch config.
 2. **Shell** — oh-my-zsh + everything `.zshrc` integrates (starship, atuin, bat,
    eza, zoxide, fzf, fd, ripgrep, jq, yazi, runtimes, …) + the `.config/*` configs.
 3. **Git** — identity + optional SSH key + git-delta (applied via `git config --global`).
 4. **Claude Code** — CLI + plugins + node shim + `~/.claude/settings.json`.
-5. **Agent tooling** — herdr + hunk + `~/.config/herdr`, then asks which agent CLI
-   herdr should integrate with (claude, codex, opencode, cursor, …) and runs
-   `herdr integration install <target>` for it.
+5. **Agent tooling** — herdr + hunk + rtk + headroom + skillspector +
+   `~/.config/herdr`, then asks which agent CLI herdr and rtk should hook into
+   (claude, codex, opencode, cursor, …) and offers to register headroom as a Claude
+   Code MCP server.
 
 Notes:
 - Each segment lists exactly what it installs and configures before you confirm.
 - The shell/terminal tools and their configs install **together** (a config without
   its tools breaks the shell/terminal), so those segments are all-or-nothing.
 - Anything already present is skipped; configs are never overwritten silently
-  (`keep / overwrite / diff`). It ends with a summary of what was done.
+  (`keep / overwrite / diff`). It ends with a summary of what was done, plus a
+  list of optional extras (k6, kustomize, minikube, headlamp, aws, gemini, …) with
+  their install commands. Those are not installed.
 
 After it finishes: restart the terminal (or `source ~/.zshrc`) and select
 **MesloLGS Nerd Font** in your terminal app.
@@ -68,7 +72,7 @@ After it finishes: restart the terminal (or `source ~/.zshrc`) and select
 **Bootstrap** (in order): Xcode Command Line Tools → Homebrew → figlet.
 
 **Runtimes** (curl installers): `nvm` + an LTS `node` (+ a `~/.local/bin/node` shim
-so non-interactive shells/hooks find node), `bun`, `uv`.
+so non-interactive shells/hooks find node), `pnpm` (npm -g), `bun`, `uv`.
 
 **Homebrew formulae:**
 
@@ -90,16 +94,21 @@ so non-interactive shells/hooks find node), `bun`, `uv`.
 | ripgrep | fast recursive grep |
 | jq | JSON processor |
 
-**Casks:** `font-meslo-lg-nerd-font`, `font-symbols-only-nerd-font`, `wezterm`.
+**Casks:** `font-meslo-lg-nerd-font`, `font-jetbrains-mono-nerd-font`,
+`font-symbols-only-nerd-font`, `wezterm`.
 
 **Claude Code** (native installer): the `claude` CLI, plus marketplaces + plugins
-(`superpowers`, `typescript-lsp`, `caveman`, `plannotator`) wired up via
-`claude plugin`, and a portable `~/.claude/settings.json`.
+(`superpowers`, `typescript-lsp`, `caveman`, `plannotator`, `prismantis`) wired up via
+`claude plugin`, a portable `~/.claude/settings.json`, and the ccstatusline layout
+(`~/.config/ccstatusline`) for the status line.
 
 **Agent tooling:** `herdr` (terminal workspace manager for AI coding agents, via
 `herdr.dev/install.sh` → `~/.local/bin/herdr`) and `hunk` (hunkdiff — terminal diff
-viewer for agent-authored changesets, via `npm i -g hunkdiff`). herdr hooks into one
-agent CLI at a time, so the installer asks which one you use instead of assuming.
+viewer for agent-authored changesets, via `npm i -g hunkdiff`), `rtk` (token-saving
+CLI proxy, via brew), `headroom` (context optimization layer + MCP server, via
+`uv tool install "headroom-ai[all]"`) and `skillspector` (security scanner for agent
+skills, via `uv tool install`). herdr and rtk each hook into one agent CLI at a time,
+so the installer asks which one you use instead of assuming.
 
 **oh-my-zsh custom plugins** (git clone): `zsh-autosuggestions`,
 `fast-syntax-highlighting`.
@@ -112,7 +121,7 @@ Configs live in `configs/` and are copied to their destinations during each segm
 
 ```
 configs/home/   → $HOME            (.zshrc, .wezterm.lua)
-configs/config/ → $HOME/.config    (atuin, bat, fastfetch, starship, yazi, herdr)
+configs/config/ → $HOME/.config    (atuin, bat, fastfetch, starship, yazi, herdr, ccstatusline)
 configs/claude/ → $HOME/.claude    (settings.json)
 ```
 
