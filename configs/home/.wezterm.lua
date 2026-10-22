@@ -51,19 +51,85 @@ local ink = {
 }
 
 config.font = wezterm.font("MesloLGS Nerd Font Mono")
-config.font_size = 15
+config.font_size = 17
 config.line_height = 1
 
--- near-monochrome ink wash; just enough drift to avoid a flat slab
-config.window_background_gradient = {
-    colors = {
-        '#1d1f23ff',
-        '#17191dff',
-        '#101215ff',
+-- dotted overlay: the tile is generated as a PNG on first load (no vendored
+-- image). Cached by parameters, so tweaking DOT just writes a new file.
+-- spacing/size are physical pixels (retina: 2px = 1pt).
+local DOT = { spacing = 6, size = 2, rgb = { 255, 255, 255 }, alpha = 12 }
+
+local function dot_tile(d)
+    local path = string.format('%s/.cache/wezterm-dot-%d-%d-%d.png',
+        wezterm.home_dir, d.spacing, d.size, d.alpha)
+    local f = io.open(path, 'rb')
+    if f then f:close(); return path end
+
+    -- raw RGBA scanlines, filter byte 0 per row; dot in the top-left corner
+    local n, raw = d.spacing, {}
+    local on = string.char(d.rgb[1], d.rgb[2], d.rgb[3], d.alpha)
+    for y = 0, n - 1 do
+        raw[#raw + 1] = '\0'
+        for x = 0, n - 1 do
+            raw[#raw + 1] = (x < d.size and y < d.size) and on or '\0\0\0\0'
+        end
+    end
+    raw = table.concat(raw)
+
+    local crc_t = {}
+    for i = 0, 255 do
+        local c = i
+        for _ = 1, 8 do c = (c & 1 == 1) and (0xEDB88320 ~ (c >> 1)) or (c >> 1) end
+        crc_t[i] = c
+    end
+    local function crc32(s)
+        local c = 0xFFFFFFFF
+        for i = 1, #s do c = crc_t[(c ~ s:byte(i)) & 0xFF] ~ (c >> 8) end
+        return c ~ 0xFFFFFFFF
+    end
+    local function adler32(s)
+        local a, b = 1, 0
+        for i = 1, #s do a = (a + s:byte(i)) % 65521; b = (b + a) % 65521 end
+        return (b << 16) | a
+    end
+    local function chunk(t, data)
+        return string.pack('>I4', #data) .. t .. data .. string.pack('>I4', crc32(t .. data))
+    end
+    -- zlib stream holding one stored (uncompressed) deflate block; fine for a tiny tile
+    local z = '\x78\x01' .. string.pack('<BI2I2', 1, #raw, (~#raw) & 0xFFFF)
+        .. raw .. string.pack('>I4', adler32(raw))
+    local png = '\x89PNG\r\n\x1a\n'
+        .. chunk('IHDR', string.pack('>I4I4BBBBB', n, n, 8, 6, 0, 0, 0))
+        .. chunk('IDAT', z) .. chunk('IEND', '')
+
+    f = io.open(path, 'wb')
+    if not f then return nil end
+    f:write(png); f:close()
+    return path
+end
+
+-- config.background replaces window_background_gradient/_opacity, so the ink
+-- wash and the 0.7 transparency live in layer 1; dots sit on top of it.
+local layers = {
+    -- near-monochrome ink wash; just enough drift to avoid a flat slab
+    {
+        source = { Gradient = {
+            colors = { '#1d1f23', '#17191d', '#101215' },
+            orientation = 'Horizontal',
+        } },
+        width = '100%', height = '100%',
+        opacity = 0.7,
     },
-    orientation = 'Horizontal',
 }
-config.window_background_opacity = 0.7
+local tile = dot_tile(DOT)
+if tile then
+    layers[#layers + 1] = {
+        source = { File = tile },
+        repeat_x = 'Repeat', repeat_y = 'Repeat',
+        width = DOT.spacing, height = DOT.spacing,
+    }
+end
+config.background = layers
 config.macos_window_background_blur = 25
 
 config.window_decorations = "RESIZE"

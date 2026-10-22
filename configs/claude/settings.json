@@ -22,7 +22,8 @@
     "superpowers@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
     "caveman@caveman": true,
-    "plannotator@plannotator": true
+    "plannotator@plannotator": true,
+    "prismantis@prismantis": true
   },
   "extraKnownMarketplaces": {
     "caveman": {
@@ -36,10 +37,48 @@
         "source": "github",
         "repo": "backnotprop/plannotator"
       }
+    },
+    "prismantis": {
+      "source": {
+        "source": "github",
+        "repo": "NahumLitvin/prismantis"
+      }
     }
   },
   "theme": "dark",
   "model": "opus[1m]",
   "effortLevel": "medium",
-  "autoMemoryEnabled": false
+  "autoMemoryEnabled": false,
+  "modelSettings": {
+    "claude-sonnet-5": {
+      "effortLevel": "high"
+    },
+    "claude-opus-5": {
+      "effortLevel": "medium"
+    }
+  },
+  "pluginConfigs": {
+    "prismantis@prismantis": {
+      "options": {
+        "enabled": true,
+        "theme": "nord",
+        "headingStyle": "banner",
+        "tableStyle": "grid",
+        "promptStyle": "bar",
+        "toolStyle": "tree-bold",
+        "toolOutput": "full",
+        "taskStyle": "progress",
+        "rtl": "auto",
+        "highlightNumbers": true,
+        "highlightPaths": true,
+        "mermaidAscii": false,
+        "toolRows": true,
+        "mermaid": true,
+        "copyButtons": false,
+        "diagramHints": true,
+        "latex": false
+      }
+    }
+  },
+  "idleCompaction": false
 }

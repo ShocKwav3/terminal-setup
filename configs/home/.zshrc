@@ -67,6 +67,10 @@ nvm()  { _load_nvm; nvm "$@"; }
 node() { _load_nvm; node "$@"; }
 npm()  { _load_nvm; npm "$@"; }
 npx()  { _load_nvm; npx "$@"; }
+# global npm CLIs (hunk, pnpm, …) on PATH without loading nvm: newest node's bin
+_nvm_node=( "$NVM_DIR"/versions/node/v*(N/nOn[1]) )
+[ -n "$_nvm_node" ] && export PATH="$_nvm_node/bin:$PATH"
+unset _nvm_node
 
 # FZF stuff
 source ~/Documents/Tools/fzf-git.sh/fzf-git.sh
@@ -111,21 +115,12 @@ function y() {
 	rm -f -- "$tmp"
 }
 
-# Custom stuff------------------------------------
-# eval "$(fzf --zsh)" # Moved to plugin section
-eval "$(atuin init zsh)"
-eval "$(starship init zsh)"
-
 # if [ -z "$DISABLE_ZOXIDE" ]; then
     # eval "$(zoxide init --cmd cd zsh)"
 # fi
 
-#Command not found handler for Homebrew
-HOMEBREW_COMMAND_NOT_FOUND_HANDLER="$(brew --repository)/Library/Homebrew/command-not-found/handler.sh"
-if [ -f "$HOMEBREW_COMMAND_NOT_FOUND_HANDLER" ]; then
-  source "$HOMEBREW_COMMAND_NOT_FOUND_HANDLER";
-fi
-
-# zoxide must init LAST: it hooks precmd/chpwd, and any init that runs after it
-# (starship, the brew handler above) can clobber those hooks. Keep this at the end.
+# Custom stuff------------------------------------
+# eval "$(fzf --zsh)" # Moved to plugin section
+eval "$(atuin init zsh)"
+eval "$(starship init zsh)"
 eval "$(zoxide init zsh)"
