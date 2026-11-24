@@ -22,7 +22,7 @@ local config = wezterm.config_builder()
 -- Defined inline rather than via color_scheme so the tab-bar palette in
 -- section 5 can be tuned against the exact same values.
 local ink = {
-    bg        = '#15171a',   -- warm near-black
+    bg        = '#0f1013',   -- warm near-black (darkened, was '#15171a')
     fg        = '#c8c5bc',   -- bone
     cursor    = '#7fa8a3',   -- muted teal
     sel_bg    = '#2e3238',
@@ -114,7 +114,7 @@ local layers = {
     -- near-monochrome ink wash; just enough drift to avoid a flat slab
     {
         source = { Gradient = {
-            colors = { '#1d1f23', '#17191d', '#101215' },
+            colors = { '#141518', '#0f1013', '#0a0b0d' },  -- darkened (was '#1d1f23', '#17191d', '#101215')
             orientation = 'Horizontal',
         } },
         width = '100%', height = '100%',
@@ -130,7 +130,7 @@ if tile then
     }
 end
 config.background = layers
-config.macos_window_background_blur = 25
+config.macos_window_background_blur = 40
 
 config.window_decorations = "RESIZE"
 config.window_padding = {

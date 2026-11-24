@@ -756,8 +756,8 @@ segment_claude() {
 
   summary "Configure will: ensure node + shim and bun (status line runs via bunx),"
   summary "  deploy ~/.claude/settings.json + ~/.config/ccstatusline,"
-  summary "  add marketplaces (caveman, plannotator, prismantis),"
-  summary "  install plugins (superpowers, typescript-lsp, caveman, plannotator, prismantis)."
+  summary "  add marketplaces (caveman, plannotator, ponytail),"
+  summary "  install plugins (superpowers, typescript-lsp, clangd-lsp, caveman, plannotator, ponytail)."
   if ! confirm "Configure Claude Code now?"; then
     record skipped "Claude config"
     return
@@ -787,11 +787,12 @@ segment_claude() {
       && ok "marketplace: caveman" || warn "marketplace caveman: add failed or already present."
     claude plugin marketplace add backnotprop/plannotator 2>/dev/null \
       && ok "marketplace: plannotator" || warn "marketplace plannotator: add failed or already present."
-    claude plugin marketplace add NahumLitvin/prismantis 2>/dev/null \
-      && ok "marketplace: prismantis" || warn "marketplace prismantis: add failed or already present."
+    claude plugin marketplace add DietrichGebert/ponytail 2>/dev/null \
+      && ok "marketplace: ponytail" || warn "marketplace ponytail: add failed or already present."
     local p
     for p in superpowers@claude-plugins-official typescript-lsp@claude-plugins-official \
-             caveman@caveman plannotator@plannotator prismantis@prismantis; do
+             clangd-lsp@claude-plugins-official caveman@caveman plannotator@plannotator \
+             ponytail@ponytail; do
       claude plugin install "$p" 2>/dev/null && ok "plugin: $p" \
         || warn "plugin $p: install failed or already present."
     done

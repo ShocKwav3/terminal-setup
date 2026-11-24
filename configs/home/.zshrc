@@ -119,6 +119,9 @@ function y() {
     # eval "$(zoxide init --cmd cd zsh)"
 # fi
 
+# for platformio
+export PATH="$PATH:$HOME/.platformio/penv/bin"
+
 # Custom stuff------------------------------------
 # eval "$(fzf --zsh)" # Moved to plugin section
 eval "$(atuin init zsh)"

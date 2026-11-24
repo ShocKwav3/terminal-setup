@@ -121,7 +121,14 @@ dirs, no theme `preview.png` / `README.md`.
 **colorful + icon-only**. Every module that can vary carries its alternates as
 commented blocks, each introduced by a fixed marker line:
 
-- `# v1 (orig colorful — ACTIVE...)` — colorful, icon-only *(active in the repo)*
+- `# v1 (orig colorful — ACTIVE...)` — colorful, icon-only *(active in the repo)*.
+  For toolchain + infra segments this is the bare glyph in its brand color
+  (`[ICON](bold fg:color_x) `) — no caps, no background.
+- `# v1-pill (colorful pill — INACTIVE):` — toolchain + infra only, right after
+  the v1 value: the colorful pill (caps + white icon on brand bg). A manual
+  alternate — the installer never activates it (its marker is not one the `awk`
+  knows), and the `awk` leaves it commented in every combo. Swap by hand: comment
+  the v1 `format`, uncomment the v1-pill one.
 - `# v2 (less-color icon-only — INACTIVE):` — grey/dim, icon-only
 - `# --- verbose (version) below ... ---` — colorful, icon + version
 - `# v4 (less-color verbose — INACTIVE):` — grey/dim, icon + version
@@ -129,11 +136,21 @@ commented blocks, each introduced by a fixed marker line:
 Toolchain modules (the ones with a `# command = ...` line: `pkg_*`, `cmake`,
 `lang_*`, `runtime_*`, `fw_*`, `test_*`) have all four. Color-only modules
 (`username`, `directory`, `cmd_duration`, `env_var`, `container`, `custom.docker`,
-`terraform`, `helm`, `kubernetes`, `status`) have only `v1`/`v2` — the verbose axis
-falls back to the matching icon variant for them. `custom.docker` replaces the
-builtin `docker_context`, which hides itself for Docker Desktop's default
-(`desktop-linux`) context; it shows when the directory has a Dockerfile / compose
-file instead. The `git_*` modules are fixed
+`custom.terraform`, `custom.helm`, `custom.k8s`, `status`) have only `v1`/`v2` — the
+verbose axis falls back to the matching icon variant for them. The infra segments are
+custom, icon-only modules detected by project files in the current directory,
+replacing builtins that misbehave:
+
+- `custom.docker` replaces `docker_context`, which hides itself for Docker Desktop's
+  default (`desktop-linux`) context. Shows on a Dockerfile / compose file.
+- `custom.terraform` replaces `terraform` (its `$workspace` is almost always
+  `default`). Shows on `*.tf` / `*.tofu`, `.terraform/` or `.terraform.lock.hcl`.
+- `custom.helm` replaces `helm`, which runs `helm version` every prompt. Shows on
+  `Chart.yaml`, `helmfile.yaml` / `.yml` or a `charts/` folder.
+- `custom.k8s` replaces `kubernetes`, which hides when kubeconfig has no
+  current-context. Shows on `kustomization.yaml` / `.yml`, `skaffold.yaml`,
+  `Tiltfile`, `helmfile.yaml` or a `k8s/` / `kubernetes/` / `kustomize/` /
+  `manifests/` folder. The `git_*` modules are fixed
 (no markers). wezterm has **no** variants.
 
 `apply_starship_variants` maps the two prompt answers to one target marker per
