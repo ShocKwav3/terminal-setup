@@ -98,7 +98,7 @@ so non-interactive shells/hooks find node), `pnpm` (npm -g), `bun`, `uv`.
 `font-symbols-only-nerd-font`, `wezterm`.
 
 **Claude Code** (native installer): the `claude` CLI, plus marketplaces + plugins
-(`superpowers`, `typescript-lsp`, `caveman`, `plannotator`, `prismantis`) wired up via
+(`superpowers`, `typescript-lsp`, `clangd-lsp`, `caveman`, `plannotator`, `ponytail`) wired up via
 `claude plugin`, a portable `~/.claude/settings.json`, and the ccstatusline layout
 (`~/.config/ccstatusline`) for the status line.
 

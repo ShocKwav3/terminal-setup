@@ -12,6 +12,7 @@
       "ReportFindings"
     ]
   },
+  "model": "opus[1m]",
   "disableRemoteControl": true,
   "statusLine": {
     "type": "command",
@@ -19,11 +20,12 @@
     "padding": 0
   },
   "enabledPlugins": {
-    "superpowers@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true,
     "caveman@caveman": true,
     "plannotator@plannotator": true,
-    "prismantis@prismantis": true
+    "superpowers@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "ponytail@ponytail": true,
+    "clangd-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "caveman": {
@@ -38,17 +40,14 @@
         "repo": "backnotprop/plannotator"
       }
     },
-    "prismantis": {
+    "ponytail": {
       "source": {
         "source": "github",
-        "repo": "NahumLitvin/prismantis"
+        "repo": "DietrichGebert/ponytail"
       }
     }
   },
-  "theme": "dark",
-  "model": "opus[1m]",
   "effortLevel": "medium",
-  "autoMemoryEnabled": false,
   "modelSettings": {
     "claude-sonnet-5": {
       "effortLevel": "high"
@@ -58,27 +57,14 @@
     }
   },
   "pluginConfigs": {
-    "prismantis@prismantis": {
+    "ponytail@ponytail": {
       "options": {
-        "enabled": true,
-        "theme": "nord",
-        "headingStyle": "banner",
-        "tableStyle": "grid",
-        "promptStyle": "bar",
-        "toolStyle": "tree-bold",
-        "toolOutput": "full",
-        "taskStyle": "progress",
-        "rtl": "auto",
-        "highlightNumbers": true,
-        "highlightPaths": true,
-        "mermaidAscii": false,
-        "toolRows": true,
-        "mermaid": true,
-        "copyButtons": false,
-        "diagramHints": true,
-        "latex": false
+        "ledger": true,
+        "sendNames": true
       }
     }
   },
+  "autoMemoryEnabled": false,
+  "theme": "dark",
   "idleCompaction": false
 }
